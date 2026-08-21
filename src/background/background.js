@@ -8446,7 +8446,7 @@ function fetchShortcutFaviconManifest(manifestUrl, signal) {
 
 function fetchShortcutFaviconResource(candidate, pageUrl, signal) {
   const sourceUrl = candidate && candidate.url ? String(candidate.url) : '';
-  if (!sourceUrl || !isAllowedFaviconProxyRequestUrl(sourceUrl)) {
+  if (!sourceUrl || /^chrome:/i.test(sourceUrl) || !isAllowedFaviconProxyRequestUrl(sourceUrl)) {
     return Promise.resolve(null);
   }
   return fetch(sourceUrl, {
@@ -8840,9 +8840,11 @@ function renderHighlightedText(target, text, query, styles) {
 }
 
 function fetchFaviconData(url, pageUrl) {
-  if (!url) {
+  const sourceUrl = String(url || '').trim();
+  if (!sourceUrl || /^chrome:/i.test(sourceUrl)) {
     return Promise.resolve(null);
   }
+  url = sourceUrl;
   return Promise.all([
     loadFaviconRequestBlacklistItems(),
     loadFaviconEnhancedFetchEnabled()

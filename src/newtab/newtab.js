@@ -465,10 +465,6 @@
   let newtabReadySettleTimer = 0;
   let newtabReadyViewportRevision = 0;
   let newtabEntryAnimationTimer = 0;
-  let resolveNewtabEntryAnimationReady = null;
-  const newtabEntryAnimationReadyPromise = new Promise((resolve) => {
-    resolveNewtabEntryAnimationReady = resolve;
-  });
   let searchEntryLastVisibleViewportWidth = Math.max(0, window.innerWidth || 0);
   let searchEntryLastVisibleViewportHeight = Math.max(0, window.innerHeight || 0);
   let currentRecentMode = 'most';
@@ -512,7 +508,6 @@
   let newtabTopContentMode = 'brand';
   let newtabTimeFontWeight = NEWTAB_TIME_FONT_WEIGHT_DEFAULT;
   let newtabTimeSecondsVisible = false;
-  let newtabInputAutoFocusEnabled = false;
   let numberShortcutInstantEnabled = false;
   let macosCtrlSuggestionNavigationEnabled = false;
   let simpleModeEnabled = false;
@@ -1334,45 +1329,6 @@
       ? SETTINGS.normalizeNewtabShortcutDockMagnificationEnabled(value)
       : value !== false;
   }
-
-  function normalizeNewtabInputAutoFocusEnabled(value) {
-    return typeof SETTINGS.normalizeNewtabInputAutoFocusEnabled === 'function'
-      ? SETTINGS.normalizeNewtabInputAutoFocusEnabled(value)
-      : value === true;
-  }
-
-  function updateNewtabInputAutoFocusUi() {
-    if (wallpaperRuntime && typeof wallpaperRuntime.updateInputAutoFocusUi === 'function') {
-      wallpaperRuntime.updateInputAutoFocusUi();
-    }
-  }
-
-  function setNewtabInputAutoFocusEnabled(enabled) {
-    const nextValue = normalizeNewtabInputAutoFocusEnabled(enabled);
-    newtabInputAutoFocusEnabled = nextValue;
-    updateNewtabInputAutoFocusUi();
-    if (storageArea) {
-      storageArea.set({ [NEWTAB_INPUT_AUTO_FOCUS_ENABLED_STORAGE_KEY]: nextValue });
-    }
-    return nextValue;
-  }
-
-  function loadNewtabInputAutoFocusEnabled() {
-    if (!storageArea) {
-      newtabInputAutoFocusEnabled = false;
-      return Promise.resolve(newtabInputAutoFocusEnabled);
-    }
-    return new Promise((resolve) => {
-      storageArea.get([NEWTAB_INPUT_AUTO_FOCUS_ENABLED_STORAGE_KEY], (result) => {
-        const rawValue = result && result[NEWTAB_INPUT_AUTO_FOCUS_ENABLED_STORAGE_KEY];
-        newtabInputAutoFocusEnabled = normalizeNewtabInputAutoFocusEnabled(rawValue);
-        updateNewtabInputAutoFocusUi();
-        resolve(newtabInputAutoFocusEnabled);
-      });
-    });
-  }
-
-  const initialNewtabInputAutoFocusReadyTask = loadNewtabInputAutoFocusEnabled();
 
   function loadNumberShortcutInstantEnabled() {
     if (!storageArea) {
@@ -2304,10 +2260,6 @@
     if (document.body && document.body.getAttribute('data-nt-enter') === 'run') {
       document.body.setAttribute('data-nt-enter', 'done');
       root.setAttribute('data-lumno-search-entry', 'done');
-      if (resolveNewtabEntryAnimationReady) {
-        resolveNewtabEntryAnimationReady();
-        resolveNewtabEntryAnimationReady = null;
-      }
     }
   }
 
@@ -2324,10 +2276,6 @@
     document.body.setAttribute('data-nt-enter', entryState);
     root.setAttribute('data-lumno-search-entry', entryState);
     if (reduceMotion) {
-      if (resolveNewtabEntryAnimationReady) {
-        resolveNewtabEntryAnimationReady();
-        resolveNewtabEntryAnimationReady = null;
-      }
       return;
     }
     newtabEntryAnimationTimer = window.setTimeout(
@@ -2350,10 +2298,6 @@
     finishWordmarkEntryAnimation();
     markNewtabStartupMilestone('ready-visible');
     document.body.setAttribute('data-nt-ready', '1');
-    if (resolveNewtabEntryAnimationReady) {
-      resolveNewtabEntryAnimationReady();
-      resolveNewtabEntryAnimationReady = null;
-    }
     rememberSearchEntryViewport();
   }
 
@@ -2800,11 +2744,6 @@
       setNewtabSearchWidth(value, options);
     },
     featureHints: FEATURE_HINTS,
-    inputAutoFocusReady: initialNewtabInputAutoFocusReadyTask,
-    inputAutoFocusVisibilityGate: newtabEntryAnimationReadyPromise,
-    getInputAutoFocusEnabled: () => newtabInputAutoFocusEnabled,
-    setInputAutoFocusEnabled: setNewtabInputAutoFocusEnabled,
-    getInputAutoFocusHintAnchor: () => inputParts && inputParts.container,
     getAdaptiveToneTargets: createWallpaperAdaptiveToneTargets,
     view: NEWTAB_WALLPAPER_VIEW
   });
@@ -4433,11 +4372,6 @@
     }
     if (changes[LANGUAGE_STORAGE_KEY]) {
       applyLanguageMode(changes[LANGUAGE_STORAGE_KEY].newValue || 'system');
-    }
-    if (changes[NEWTAB_INPUT_AUTO_FOCUS_ENABLED_STORAGE_KEY]) {
-      const rawValue = changes[NEWTAB_INPUT_AUTO_FOCUS_ENABLED_STORAGE_KEY].newValue;
-      newtabInputAutoFocusEnabled = normalizeNewtabInputAutoFocusEnabled(rawValue);
-      updateNewtabInputAutoFocusUi();
     }
     if (changes[RECENT_COUNT_STORAGE_KEY]) {
       const nextCount = normalizeRecentCount(changes[RECENT_COUNT_STORAGE_KEY].newValue);
@@ -16037,67 +15971,17 @@
     });
   }
 
-  function scheduleAutoFocusRecovery() {
-    const hasExplicitFocusHint = window.location.search.includes('focus=1') ||
-      window.location.hash.includes('focus');
-    let forceInitialFocusPending = hasExplicitFocusHint;
-
-    const retryDelays = [0, 60, 140, 280, 520, 900, 1400];
-    const attemptFocusIfVisible = () => {
-      if (!newtabInputAutoFocusEnabled) {
-        return;
-      }
-      if (document.visibilityState !== 'visible') {
-        return;
-      }
-      if (!document.hasFocus()) {
-        return;
-      }
-      const focused = tryFocusSearchInput(forceInitialFocusPending);
-      if (focused) {
-        forceInitialFocusPending = false;
-      }
-    };
-
-    retryDelays.forEach((delay) => {
-      setTimeout(attemptFocusIfVisible, delay);
-    });
-
-    if (document.body &&
-        document.body.getAttribute('data-nt-ready') !== '1' &&
-        typeof window.MutationObserver === 'function') {
-      const readyObserver = new window.MutationObserver(() => {
-        if (document.body.getAttribute('data-nt-ready') !== '1') {
-          return;
-        }
-        readyObserver.disconnect();
-        setTimeout(attemptFocusIfVisible, 0);
-      });
-      readyObserver.observe(document.body, {
-        attributes: true,
-        attributeFilter: ['data-nt-ready']
-      });
-    }
-
-    window.addEventListener('focus', () => {
-      setTimeout(attemptFocusIfVisible, 0);
+  window.addEventListener('focus', () => {
+    setTimeout(refreshTabsIfIdle, 0);
+  }, true);
+  window.addEventListener('pageshow', () => {
+    refreshTabsIfIdle();
+  }, true);
+  document.addEventListener('visibilitychange', () => {
+    if (document.visibilityState === 'visible') {
       setTimeout(refreshTabsIfIdle, 0);
-    }, true);
-    window.addEventListener('pageshow', () => {
-      attemptFocusIfVisible();
-      refreshTabsIfIdle();
-    }, true);
-    document.addEventListener('visibilitychange', () => {
-      if (document.visibilityState === 'visible') {
-        setTimeout(attemptFocusIfVisible, 0);
-        setTimeout(refreshTabsIfIdle, 0);
-      }
-    }, true);
-  }
-
-  initialNewtabInputAutoFocusReadyTask.then(() => {
-    scheduleAutoFocusRecovery();
-  });
+    }
+  }, true);
   refreshFallbackShortcut(true);
 
   function handleGlobalTypingFocus(event) {

@@ -36,7 +36,11 @@ describe('New Tab React wallpaper view', () => {
             { tone: 'dark', fallback: 'Shadows' },
             { tone: 'light', fallback: 'Highlights' }
           ],
-          favicons: [{ id: 'default', previewUrl: '/favicon.png' }],
+          favicons: [
+            { id: 'default', previewUrl: '/favicon.png' },
+            { id: 'alternate', inlineSvg: '<svg viewBox="0 0 1 1"></svg>' },
+            { id: 'avatar', previewUrl: '/newtab-avatar-favicon.png' }
+          ],
           icons: { info: '<i class="ri-information-line"></i>' },
           moreSettingsUrl: '/options#appearance',
           searchWidth: {
@@ -83,19 +87,26 @@ describe('New Tab React wallpaper view', () => {
       });
     });
     expect(controller.getRefs().effectInkToneIndicator).toBeTruthy();
+    const faviconOptions = controller.getRefs().faviconOptions;
+    expect(
+      faviconOptions?.querySelectorAll('[data-newtab-favicon-id]')
+    ).toHaveLength(3);
+    expect(
+      faviconOptions?.querySelector<HTMLImageElement>(
+        '[data-newtab-favicon-id="avatar"] img'
+      )?.src
+    ).toContain('/newtab-avatar-favicon.png');
     const topContentGroup = controller.getRefs().topContentTabs;
     expect(topContentGroup?.getAttribute('role')).toBe('group');
     const topContentButtons = topContentGroup?.querySelectorAll('button');
     expect(topContentButtons).toHaveLength(3);
     expect(topContentButtons?.[0]?.getAttribute('aria-pressed')).toBe('true');
-    const inputAutoFocusToggle = controller.getRefs().inputAutoFocusToggle;
-    expect(inputAutoFocusToggle?.getAttribute('role')).toBe('switch');
-    expect(inputAutoFocusToggle?.getAttribute('aria-label')).toBe(
-      'Automatically focus the search input'
-    );
-    const inputAutoFocusInfoButton = controller.getRefs().inputAutoFocusInfoButton;
-    expect(inputAutoFocusInfoButton?.classList.contains('x-nt-appearance-info-button')).toBe(true);
-    expect(inputAutoFocusInfoButton?.querySelector('.ri-information-line')).not.toBeNull();
+    expect(controller.getRefs().inputAutoFocusTitle).toBeUndefined();
+    expect(controller.getRefs().inputAutoFocusInfoButton).toBeUndefined();
+    expect(controller.getRefs().inputAutoFocusToggle).toBeUndefined();
+    expect(
+      controller.control.querySelector('[aria-label="Automatically focus the search input"]')
+    ).toBeNull();
   });
 
   it('updates custom wallpaper tiles without replacing the panel', () => {

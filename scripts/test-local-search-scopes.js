@@ -336,10 +336,10 @@ assert.match(
   /function handleGlobalTypingFocus\(event\)[\s\S]*?shouldHandleModeMenuKeyEvent\(event\)[\s\S]*?const activeElement = document\.activeElement/,
   'newtab global typing should not steal text while the scope panel owns focus'
 );
-assert.match(
+assert.doesNotMatch(
   newtabHtml,
-  /assets\/vendor\/pinyin-pro\.js[\s\S]*?shared\/search-input-mode\.js/,
-  'newtab should load the local pinyin runtime before the shared scope controller'
+  /<script[^>]+assets\/vendor\/pinyin-pro\.js/,
+  'newtab should not parse the pinyin runtime on its critical startup path'
 );
 assert.doesNotMatch(
   backgroundSource,
@@ -349,7 +349,17 @@ assert.doesNotMatch(
 assert.match(
   inputModeSource,
   /import\(chromeApi\.runtime\.getURL\('assets\/vendor\/pinyin-pro\.js'\)\)/,
-  'overlay scope search should lazy-load the pinyin runtime when needed'
+  'scope search should lazy-load the pinyin runtime when needed'
+);
+assert.match(
+  inputModeSource,
+  /let modeMenuPinyinRuntimeReady;[\s\S]*?function getModeMenuPinyinRuntimeReady\(\)[\s\S]*?typeof modeMenuPinyinRuntimeReady === 'undefined'[\s\S]*?modeMenuPinyinRuntimeReady = ensureModeMenuPinyinRuntime\(\)/,
+  'the first scope-menu open should memoize its pinyin runtime load'
+);
+assert.match(
+  inputModeSource,
+  /function openModeMenu\(focusTarget\)[\s\S]*?const pinyinRuntimeReady = getModeMenuPinyinRuntimeReady\(\);[\s\S]*?Promise\.all\(\[[\s\S]*?Promise\.resolve\(items\),[\s\S]*?Promise\.resolve\(pinyinRuntimeReady\)[\s\S]*?finishOpen\(resolvedItems\)/,
+  'scope-menu opening should await the lazy pinyin runtime before rendering items'
 );
 assert.match(
   manifestSource,

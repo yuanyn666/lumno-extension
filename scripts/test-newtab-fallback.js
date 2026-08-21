@@ -78,7 +78,7 @@ globalThis.chrome = {
 
 assert.strictEqual(
   fallback.buildNewtabFallbackUrl({ notice: 'file-access' }),
-  'chrome-extension://abc/src/newtab/lumno-newtab.html?focus=1&notice=file-access',
+  'chrome-extension://abc/src/newtab/lumno-newtab.html?notice=file-access',
   'file-access notice should be encoded into the standalone Lumno newtab fallback URL'
 );
 
@@ -104,12 +104,12 @@ assert.match(
 assert.match(
   lumnoNewtabRedirectJs,
   /target\.search = window\.location\.search \|\| '';/,
-  'standalone Lumno newtab fallback should preserve focus and notice query parameters'
+  'standalone Lumno newtab fallback should preserve notice query parameters'
 );
 assert.match(
   lumnoNewtabRedirectJs,
-  /target\.searchParams\.set\('focus', '1'\);/,
-  'Lumno newtab redirect should always request focus on the maintained page'
+  /target\.searchParams\.delete\('focus'\);/,
+  'Lumno newtab redirect should remove legacy automatic-focus hints'
 );
 assert.match(
   lumnoNewtabRedirectJs,
@@ -138,8 +138,8 @@ assert.match(
   });
   assert.deepStrictEqual(
     replacedUrls,
-    ['chrome-extension://abc/src/newtab/newtab.html?focus=1&notice=file-access#search'],
-    'standalone Lumno newtab redirect should preserve query and hash while requesting focus'
+    ['chrome-extension://abc/src/newtab/newtab.html?notice=file-access#search'],
+    'standalone Lumno newtab redirect should preserve notice and hash while dropping focus'
   );
 }
 {
@@ -159,8 +159,8 @@ assert.match(
   });
   assert.deepStrictEqual(
     replacedUrls,
-    ['chrome-extension://abc/src/newtab/newtab.html?focus=1'],
-    'standalone Lumno fallbacks should request focus while retaining the maintained page entrance animation'
+    ['chrome-extension://abc/src/newtab/newtab.html'],
+    'standalone Lumno fallbacks should retain the maintained page entrance without requesting focus'
   );
 }
 assert.doesNotMatch(
@@ -172,15 +172,15 @@ assert.doesNotMatch(
 fallback.openNewtabFallbackForUrl('file:///Users/example/document.pdf');
 assert.strictEqual(
   createdTabs[0].url,
-  'chrome-extension://abc/src/newtab/lumno-newtab.html?focus=1&notice=file-access',
+  'chrome-extension://abc/src/newtab/lumno-newtab.html?notice=file-access',
   'file URLs without file-scheme access should open the notice variant'
 );
 
 fallback.openNewtabFallbackForUrl('https://example.com/');
 assert.strictEqual(
   createdTabs[1].url,
-  'chrome-extension://abc/src/newtab/lumno-newtab.html?focus=1',
-  'ordinary web URLs should open the standalone focused Lumno newtab fallback'
+  'chrome-extension://abc/src/newtab/lumno-newtab.html',
+  'ordinary web URLs should open the standalone Lumno newtab fallback without automatic focus'
 );
 
 fallback.openBrowserNewtabFallback();

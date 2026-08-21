@@ -3,58 +3,47 @@ const fs = require('fs');
 const settings = require('../src/shared/settings.js');
 
 const optionsHtml = fs.readFileSync('src/options/options.html', 'utf8');
-const optionsSource = fs.readFileSync('src/options/options.js', 'utf8');
+const newtabHtml = fs.readFileSync('src/newtab/newtab.html', 'utf8');
 const newtabSource = fs.readFileSync('src/newtab/newtab.js', 'utf8');
-
-const topContentIndex = optionsHtml.indexOf('data-i18n="settings_newtab_wordmark_title"');
-const inputAutoFocusIndex = optionsHtml.indexOf('data-i18n="newtab_input_auto_focus_title"', topContentIndex);
-const shortcutsIndex = optionsHtml.indexOf('data-i18n="settings_newtab_shortcuts_title"', inputAutoFocusIndex);
-
-assert(topContentIndex >= 0, 'options should keep the New Tab top-content setting');
-assert(
-  inputAutoFocusIndex > topContentIndex && inputAutoFocusIndex < shortcutsIndex,
-  'input auto-focus should appear directly below the search-box top-content setting'
-);
-assert.match(
-  optionsHtml,
-  /id="_x_extension_newtab_input_auto_focus_toggle_2026_unique_" type="checkbox" aria-label="输入框自动聚焦" data-i18n-aria-label="newtab_input_auto_focus_title"/,
-  'options should expose an accessible input auto-focus switch that defaults to off'
-);
+const fallbackSource = fs.readFileSync('src/newtab/lumno-newtab.js', 'utf8');
+const wallpaperViewSource = fs.readFileSync('react-src/newtab/wallpaper-view.tsx', 'utf8');
 
 assert.strictEqual(
   settings.NEWTAB_INPUT_AUTO_FOCUS_ENABLED_STORAGE_KEY,
-  '_x_extension_newtab_input_auto_focus_enabled_2026_unique_'
+  '_x_extension_newtab_input_auto_focus_enabled_2026_unique_',
+  'the retired preference key should remain readable for settings compatibility'
 );
 assert(settings.CHROME_SYNC_STORAGE_KEYS.includes(settings.NEWTAB_INPUT_AUTO_FOCUS_ENABLED_STORAGE_KEY));
-assert.match(
-  optionsSource,
-  /const newtabInputAutoFocusToggle = document\.getElementById\('_x_extension_newtab_input_auto_focus_toggle_2026_unique_'\);/,
-  'options should cache the duplicated toggle'
+
+assert.doesNotMatch(
+  optionsHtml,
+  /newtab_input_auto_focus_title|_x_extension_newtab_input_auto_focus_toggle_2026_unique_/,
+  'Options should not advertise a setting that can steal focus from the browser address bar'
 );
-assert.match(
-  optionsSource,
-  /\[newtabInputAutoFocusToggle, 'newtab-input-auto-focus'\]/,
-  'options should render the switch through the shared toggle controller'
+assert.doesNotMatch(
+  wallpaperViewSource,
+  /inputAutoFocusTitle|inputAutoFocusInfoButton|inputAutoFocusToggle|Automatically focus the search input/,
+  'the in-page appearance panel should not expose automatic focus controls'
 );
-assert.match(
-  optionsSource,
-  /newtabInputAutoFocusToggle\.addEventListener\('change'[\s\S]*?storageArea\.set\(\{ \[NEWTAB_INPUT_AUTO_FOCUS_ENABLED_STORAGE_KEY\]: next \}\)/,
-  'changing the options switch should persist the shared New Tab preference'
+assert.doesNotMatch(
+  newtabHtml,
+  /newtab-focus-entry\.js|data-nt-focus-route|data-nt-focus-paint-gate/,
+  'the New Tab document should not route or hide itself for automatic focus'
 );
-assert.match(
-  optionsSource,
-  /storageArea\.get\(\[NEWTAB_INPUT_AUTO_FOCUS_ENABLED_STORAGE_KEY\][\s\S]*?setOptionsToggleState\(newtabInputAutoFocusToggle, stored\)/,
-  'options should restore the shared New Tab preference'
-);
-assert.match(
-  optionsSource,
-  /changes\[NEWTAB_INPUT_AUTO_FOCUS_ENABLED_STORAGE_KEY\][\s\S]*?setOptionsToggleState\(newtabInputAutoFocusToggle, next\)/,
-  'options should react when the appearance-panel copy changes the shared preference'
+assert.doesNotMatch(
+  newtabSource,
+  /scheduleAutoFocusRecovery|attemptFocusIfVisible|forceInitialFocusPending|inputAutoFocusVisibilityGate/,
+  'the New Tab runtime should not schedule automatic search-input focus'
 );
 assert.match(
   newtabSource,
-  /NEWTAB_INPUT_AUTO_FOCUS_ENABLED_STORAGE_KEY = SETTINGS\.NEWTAB_INPUT_AUTO_FOCUS_ENABLED_STORAGE_KEY/,
-  'New Tab should continue to read the same shared preference key'
+  /message\.action !== 'lumno:newtab-focus-input'[\s\S]*?activateNewtabShortcutFocus\(\)/,
+  'the explicit keyboard-command focus action should remain available'
+);
+assert.match(
+  fallbackSource,
+  /target\.searchParams\.delete\('focus'\);/,
+  'legacy compatibility redirects should remove automatic-focus hints'
 );
 
 console.log('newtab input auto-focus setting tests passed');

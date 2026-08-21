@@ -24,3 +24,4 @@ supabase/.env
 supabase/.env.local
 supabase/.env.*.local
 search-rule-changes-*.md
+.idea/

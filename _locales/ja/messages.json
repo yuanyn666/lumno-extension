@@ -631,6 +631,9 @@
   "newtab_favicon_name_alternate": {
     "message": "予備"
   },
+  "newtab_favicon_name_avatar": {
+    "message": "マイアバター"
+  },
   "newtab_favicon_select_label": {
     "message": "{name} favicon を選択"
   },

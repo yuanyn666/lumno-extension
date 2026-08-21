@@ -388,26 +388,6 @@ function WallpaperPanel({ model }: { model: Record<string, any> }) {
                   ticks={model.searchWidth.ticks}
                 />
               </RangeSlider>
-              <div className="x-nt-appearance-setting-row">
-                <span className="x-nt-appearance-setting-title-group">
-                  <span
-                    {...ref('inputAutoFocusTitle')}
-                    className="x-nt-appearance-setting-title"
-                  />
-                  <button
-                    {...ref('inputAutoFocusInfoButton')}
-                    className="x-nt-appearance-info-button"
-                    dangerouslySetInnerHTML={{
-                      __html: String(model.icons?.info || '')
-                    }}
-                    type="button"
-                  />
-                </span>
-                <Switch
-                  ariaLabel="Automatically focus the search input"
-                  name="inputAutoFocusToggle"
-                />
-              </div>
               <a
                 {...ref('moreSettingsLink')}
                 className="x-nt-appearance-more-settings"

@@ -1,142 +1,51 @@
 const assert = require('assert');
 const fs = require('fs');
 const path = require('path');
-const vm = require('vm');
 
 const repoRoot = path.resolve(__dirname, '..');
 const html = fs.readFileSync(path.join(repoRoot, 'src/newtab/newtab.html'), 'utf8');
-const sourcePath = path.join(repoRoot, 'src/newtab/newtab-focus-entry.js');
-const source = fs.existsSync(sourcePath) ? fs.readFileSync(sourcePath, 'utf8') : '';
+const newtabSource = fs.readFileSync(path.join(repoRoot, 'src/newtab/newtab.js'), 'utf8');
+const fallbackSource = fs.readFileSync(path.join(repoRoot, 'src/newtab/lumno-newtab.js'), 'utf8');
 const backgroundSource = fs.readFileSync(
   path.join(repoRoot, 'src/background/background.js'),
   'utf8'
 );
-const storageKey = '_x_extension_newtab_input_auto_focus_enabled_2026_unique_';
 
-assert.match(
-  html,
-  /<script src="newtab-focus-entry\.js"><\/script>/,
-  'the maintained New Tab page should load the preference-aware focus entry router'
+assert.strictEqual(
+  fs.existsSync(path.join(repoRoot, 'src/newtab/newtab-focus-entry.js')),
+  false,
+  'the New Tab should not ship an automatic-focus navigation router'
 );
-assert.ok(
-  html.indexOf('<style data-nt-focus-paint-gate="true">') <
-    html.indexOf('<script src="../shared/settings.js"></script>'),
-  'the New Tab paint gate should be parsed before visual preload scripts can expose the wallpaper'
+assert.doesNotMatch(
+  html,
+  /newtab-focus-entry\.js|data-nt-focus-route|data-nt-focus-paint-gate/,
+  'the maintained New Tab should paint directly without a focus-route gate'
 );
 assert.ok(
   html.indexOf('<script src="../shared/settings.js"></script>') <
-    html.indexOf('<script src="newtab-focus-entry.js"></script>'),
-  'the shared setting contract should load before the focus entry router'
-);
-assert.ok(
-  html.indexOf('<script src="newtab-focus-entry.js"></script>') <
     html.indexOf('<script src="wallpaper-preload.js"></script>'),
-  'the focus route should settle before the New Tab starts visual preloading'
+  'normal visual preloading should continue after shared settings load'
+);
+assert.doesNotMatch(
+  newtabSource,
+  /scheduleAutoFocusRecovery|attemptFocusIfVisible|forceInitialFocusPending/,
+  'opening or reactivating a New Tab must not automatically focus the page search input'
 );
 assert.match(
-  html,
-  /html\[data-nt-focus-route-pending="true"\] body,\s*html\[data-nt-focus-route="true"\] body:not\(\[data-nt-wallpaper-ready="1"\]\)\s*\{\s*visibility:\s*hidden;\s*background-image:\s*none !important;/,
-  'pending and focused New Tab routes should suppress the propagated body wallpaper until the final effect is ready'
+  newtabSource,
+  /message\.action !== 'lumno:newtab-focus-input'[\s\S]*?activateNewtabShortcutFocus\(\)/,
+  'an explicit user shortcut should still be allowed to focus the page search input'
 );
 assert.match(
-  html,
-  /<style data-nt-focus-paint-gate="true">[\s\S]*?<\/style>\s*<script src="\.\.\/shared\/settings\.js"><\/script>/,
-  'the focused destination paint gate should be available before focus routing starts'
+  fallbackSource,
+  /target\.searchParams\.delete\('focus'\);/,
+  'the compatibility redirect should strip legacy automatic-focus hints'
 );
-
-function runEntry({ storedValue, search = '', storageAvailable = true }) {
-  const replacedUrls = [];
-  const attributes = new Set();
-  let storageReads = 0;
-  const href = `chrome-extension://abc/src/newtab/newtab.html${search}`;
-  const location = {
-    href,
-    search,
-    replace(url) {
-      replacedUrls.push(url);
-    }
-  };
-  const chromeApi = storageAvailable
-    ? {
-        storage: {
-          sync: {
-            get(keys, callback) {
-              storageReads += 1;
-              assert.deepStrictEqual(Array.from(keys), [storageKey]);
-              callback({ [storageKey]: storedValue });
-            }
-          }
-        }
-      }
-    : {};
-  const sandbox = {
-    URL,
-    chrome: chromeApi,
-    document: {
-      documentElement: {
-        setAttribute(name) {
-          attributes.add(name);
-        },
-        removeAttribute(name) {
-          attributes.delete(name);
-        }
-      }
-    },
-    LumnoSettings: {
-      NEWTAB_INPUT_AUTO_FOCUS_ENABLED_STORAGE_KEY: storageKey,
-      normalizeNewtabInputAutoFocusEnabled(value) {
-        return value === true;
-      }
-    },
-    window: {
-      chrome: chromeApi,
-      location
-    }
-  };
-  vm.runInNewContext(source, sandbox, { filename: sourcePath });
-  return { attributes, replacedUrls, storageReads };
-}
-
-{
-  const result = runEntry({ storedValue: false });
-  assert.deepStrictEqual(result.replacedUrls, []);
-  assert.strictEqual(result.storageReads, 1);
-  assert.strictEqual(result.attributes.has('data-nt-focus-route-pending'), false);
-}
-
-{
-  const result = runEntry({ storedValue: undefined });
-  assert.deepStrictEqual(result.replacedUrls, [], 'the missing preference should default to disabled');
-  assert.strictEqual(result.storageReads, 1);
-  assert.strictEqual(result.attributes.has('data-nt-focus-route-pending'), false);
-}
-
-{
-  const result = runEntry({ storedValue: true });
-  assert.deepStrictEqual(
-    result.replacedUrls,
-    ['chrome-extension://abc/src/newtab/newtab.html?focus=1'],
-    'an existing enabled preference should retain the renderer-navigation focus handoff'
-  );
-  assert.strictEqual(result.storageReads, 1);
-}
-
-{
-  const result = runEntry({ search: '?focus=1', storedValue: true });
-  assert.deepStrictEqual(result.replacedUrls, []);
-  assert.strictEqual(result.storageReads, 0, 'the focused destination must not redirect again');
-  assert.strictEqual(
-    result.attributes.has('data-nt-focus-route'),
-    true,
-    'the focused destination should retain a first-paint readiness gate'
-  );
-}
-
-{
-  const result = runEntry({ storageAvailable: false });
-  assert.deepStrictEqual(result.replacedUrls, [], 'storage failures should preserve the disabled default');
-  assert.strictEqual(result.attributes.has('data-nt-focus-route-pending'), false);
-}
+assert.doesNotMatch(
+  fallbackSource,
+  /searchParams\.set\('focus'/,
+  'the compatibility redirect must not add a new automatic-focus hint'
+);
 
 const openNewTabBlock = backgroundSource.match(/case 'openNewTab': \{([\s\S]*?)\n    \}/);
 assert(openNewTabBlock, 'background should expose the openNewTab action');

@@ -631,6 +631,9 @@
   "newtab_favicon_name_alternate": {
     "message": "備用"
   },
+  "newtab_favicon_name_avatar": {
+    "message": "我的頭像"
+  },
   "newtab_favicon_select_label": {
     "message": "選擇 {name} favicon"
   },

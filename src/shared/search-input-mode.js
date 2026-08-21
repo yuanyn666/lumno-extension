@@ -1,5 +1,5 @@
 (function(root) {
-  const SEARCH_INPUT_MODE_RUNTIME_VERSION = '2026-08-19-natural-result-height-v34';
+  const SEARCH_INPUT_MODE_RUNTIME_VERSION = '2026-08-21-lazy-pinyin-v36';
   if (root.LumnoSearchInputMode &&
       root.LumnoSearchInputMode.runtimeVersion === SEARCH_INPUT_MODE_RUNTIME_VERSION &&
       typeof root.LumnoSearchInputMode.createInputModeController === 'function') {
@@ -459,7 +459,13 @@
         return null;
       }
     }
-    const modeMenuPinyinRuntimeReady = ensureModeMenuPinyinRuntime();
+    let modeMenuPinyinRuntimeReady;
+    function getModeMenuPinyinRuntimeReady() {
+      if (typeof modeMenuPinyinRuntimeReady === 'undefined') {
+        modeMenuPinyinRuntimeReady = ensureModeMenuPinyinRuntime();
+      }
+      return modeMenuPinyinRuntimeReady;
+    }
     const providedModeMenuCursorTooltipController =
       config.modeMenuCursorTooltipController || config.modeMenuTooltipController || null;
     const modeMenuCursorTooltipController = providedModeMenuCursorTooltipController || (
@@ -3282,13 +3288,14 @@
         return true;
       };
       const items = config.getModeMenuItems();
+      const pinyinRuntimeReady = getModeMenuPinyinRuntimeReady();
       if ((items && typeof items.then === 'function') ||
-          (modeMenuPinyinRuntimeReady &&
-            typeof modeMenuPinyinRuntimeReady.then === 'function')) {
+          (pinyinRuntimeReady &&
+            typeof pinyinRuntimeReady.then === 'function')) {
         modeMenu.setAttribute('aria-busy', 'true');
         return Promise.all([
           Promise.resolve(items),
-          Promise.resolve(modeMenuPinyinRuntimeReady)
+          Promise.resolve(pinyinRuntimeReady)
         ]).then(([resolvedItems]) => {
           if (requestId !== modeMenuRequestId) {
             return false;
@@ -3411,7 +3418,7 @@
       if (event.key === 'ArrowDown' || event.key === 'ArrowUp') {
         event.preventDefault();
         openModeMenu(event.key === 'ArrowUp' ? 'last' : 'active');
-      } else if (event.key === 'Escape' && modeMenuOpen) {
+      } else if (event.key === 'Escape' && (modeMenuOpen || modeMenuPending)) {
         event.preventDefault();
         closeModeMenu(true);
       }
@@ -3528,7 +3535,7 @@
           event.target === containerRootHost ||
           eventPath.includes(containerRootHost)
         ));
-      if (!modeMenuOpen || isInsideModeContainer) {
+      if ((!modeMenuOpen && !modeMenuPending) || isInsideModeContainer) {
         return;
       }
       closeModeMenu(false);

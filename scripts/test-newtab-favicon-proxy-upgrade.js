@@ -193,7 +193,6 @@ const extensionUrl = `chrome-extension://abc/_favicon/?pageUrl=${encodeURICompon
 const gstaticUrl = `https://t2.gstatic.cn/faviconV2?client=SOCIAL&type=FAVICON&fallback_opts=TYPE%2CSIZE%2CURL&url=${encodeURIComponent(pageUrl)}&size=128`;
 const browserPageUrl = 'chrome://extensions/';
 const browserPagePrimaryUrl = `chrome-extension://abc/_favicon/?pageUrl=${encodeURIComponent(browserPageUrl)}&size=128`;
-const browserPageFallbackUrl = `chrome://favicon2/?pageUrl=${encodeURIComponent(browserPageUrl)}&size=128`;
 
 function createRuntime(options) {
   const config = options || {};
@@ -683,13 +682,15 @@ function createRuntime(options) {
   browserPageImg.dispatchEvent('load');
   await wait(4);
   assert.strictEqual(
-    browserPageImg.src,
-    browserPageFallbackUrl,
-    'browser page default primary proxy should fall through to the browser favicon candidate'
+    browserPageImg.getAttribute('data-fallback-icon'),
+    'true',
+    'browser page default primary proxy should settle on the stable UI fallback'
   );
-
-  browserPageImg._xThemeFaviconErrorHandler();
-  assert.strictEqual(browserPageImg.getAttribute('data-fallback-icon'), 'true');
+  assert.strictEqual(
+    browserPageImg.src.startsWith('chrome://favicon2/'),
+    false,
+    'browser page fallback should never try the privileged chrome://favicon2 resource'
+  );
   console.log('newtab favicon candidate order tests passed');
 })().catch((error) => {
   console.error(error);

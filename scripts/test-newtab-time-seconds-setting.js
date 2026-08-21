@@ -73,15 +73,20 @@ const secondsRowIndex = optionsHtml.indexOf(
   '_x_extension_newtab_time_seconds_row_2026_unique_',
   fontWeightRowIndex
 );
-const autofocusRowIndex = optionsHtml.indexOf(
-  '_x_extension_newtab_input_auto_focus_toggle_2026_unique_',
+const shortcutsRowIndex = optionsHtml.indexOf(
+  '_x_extension_newtab_shortcuts_toggle_2026_unique_',
   secondsRowIndex
 );
 assert(
   topContentRowIndex < fontWeightRowIndex &&
     fontWeightRowIndex < secondsRowIndex &&
-    secondsRowIndex < autofocusRowIndex,
+    secondsRowIndex < shortcutsRowIndex,
   'Options should place time font weight above seconds immediately after the top-content selector'
+);
+assert.doesNotMatch(
+  optionsHtml,
+  /_x_extension_newtab_input_auto_focus_toggle_2026_unique_/,
+  'Options should not expose the removed input auto-focus setting'
 );
 assert.match(
   optionsHtml,

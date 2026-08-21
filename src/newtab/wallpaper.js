@@ -369,6 +369,14 @@
         themeAwareSvg: true,
         type: 'image/svg+xml',
         sizes: 'any'
+      },
+      {
+        id: 'avatar',
+        nameKey: 'newtab_favicon_name_avatar',
+        fallbackName: 'My avatar',
+        file: 'assets/images/newtab-avatar-favicon.png',
+        type: 'image/png',
+        sizes: '128x128'
       }
     ];
     const NEWTAB_FAVICON_THEME_QUERY = '(prefers-color-scheme: dark)';

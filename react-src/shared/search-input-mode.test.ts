@@ -45,7 +45,7 @@ interface ModeController {
   handleModeMenuKeyEvent(event: KeyboardEvent): boolean;
   menuElement: HTMLDivElement;
   isModeMenuVisible(): boolean;
-  openModeMenu(focusTarget?: string): boolean;
+  openModeMenu(focusTarget?: string): boolean | Promise<boolean>;
   refreshModeMenuLanguage(): void;
   resetModeMenuDoubleTab(): boolean;
   resetModeTagRemovalConfirmation(): boolean;
@@ -1190,6 +1190,86 @@ describe('Shared search scope menu', () => {
     expect(
       item?.querySelector('.x-lumno-search-input-mode__menu-match')?.textContent
     ).toBe('书');
+    controller.destroy();
+    pinyinGlobal.pinyinPro = existingPinyinApi;
+  });
+
+  it('cancels a pending lazy menu open when the user points outside', async () => {
+    const pinyinGlobal = globalThis as typeof globalThis & {
+      pinyinPro?: unknown;
+    };
+    const existingPinyinApi = pinyinGlobal.pinyinPro;
+    delete pinyinGlobal.pinyinPro;
+    let resolvePinyinRuntime: (() => void) | undefined;
+    const pinyinRuntimeReady = new Promise<void>((resolve) => {
+      resolvePinyinRuntime = resolve;
+    });
+    const parts = createModeParts();
+    const outsideButton = document.createElement('button');
+    document.body.appendChild(outsideButton);
+    const controller = window.LumnoSearchInputMode.createInputModeController(
+      parts,
+      {
+        getModeMenuItems: () => [{
+          id: 'provider:google',
+          kind: 'provider',
+          label: 'Google'
+        }],
+        loadPinyinRuntime: () => pinyinRuntimeReady
+      }
+    );
+
+    const openTask = controller.openModeMenu('none');
+    expect(openTask).toBeInstanceOf(Promise);
+    expect(controller.menuElement.getAttribute('aria-busy')).toBe('true');
+    outsideButton.dispatchEvent(new Event('pointerdown', {
+      bubbles: true,
+      composed: true
+    }));
+    resolvePinyinRuntime?.();
+
+    await expect(openTask).resolves.toBe(false);
+    expect(controller.isModeMenuVisible()).toBe(false);
+    expect(controller.menuElement.hasAttribute('aria-busy')).toBe(false);
+    controller.destroy();
+    pinyinGlobal.pinyinPro = existingPinyinApi;
+  });
+
+  it('cancels a pending lazy menu open when Escape is pressed', async () => {
+    const pinyinGlobal = globalThis as typeof globalThis & {
+      pinyinPro?: unknown;
+    };
+    const existingPinyinApi = pinyinGlobal.pinyinPro;
+    delete pinyinGlobal.pinyinPro;
+    let resolvePinyinRuntime: (() => void) | undefined;
+    const pinyinRuntimeReady = new Promise<void>((resolve) => {
+      resolvePinyinRuntime = resolve;
+    });
+    const parts = createModeParts();
+    const controller = window.LumnoSearchInputMode.createInputModeController(
+      parts,
+      {
+        getModeMenuItems: () => [{
+          id: 'provider:google',
+          kind: 'provider',
+          label: 'Google'
+        }],
+        loadPinyinRuntime: () => pinyinRuntimeReady
+      }
+    );
+
+    const openTask = controller.openModeMenu('none');
+    const escapeEvent = new KeyboardEvent('keydown', {
+      bubbles: true,
+      cancelable: true,
+      key: 'Escape'
+    });
+    parts.modePrefix.dispatchEvent(escapeEvent);
+    resolvePinyinRuntime?.();
+
+    expect(escapeEvent.defaultPrevented).toBe(true);
+    await expect(openTask).resolves.toBe(false);
+    expect(controller.isModeMenuVisible()).toBe(false);
     controller.destroy();
     pinyinGlobal.pinyinPro = existingPinyinApi;
   });

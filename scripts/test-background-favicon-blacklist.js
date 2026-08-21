@@ -233,6 +233,13 @@ async function run() {
   assert.strictEqual(result, null, 'favicon data fetch should stop for excluded favicon URLs');
   assert.strictEqual(deps.fetchCalls.length, 0, 'blocked favicon data fetch should not fetch the icon');
 
+  result = await api.fetchFaviconData(
+    'chrome://favicon2/?pageUrl=chrome%3A%2F%2Fextensions%2F&size=128',
+    'chrome://extensions/'
+  );
+  assert.strictEqual(result, null, 'background favicon data should reject chrome: resources');
+  assert.strictEqual(deps.fetchCalls.length, 0, 'chrome: favicon data must never reach Fetch');
+
   result = await api.fetchFaviconData('chrome-extension://test/_favicon/?pageUrl=https%3A%2F%2Ffoo.blocked.example.com%2Fpage');
   assert.ok(
     typeof result === 'string' && result.startsWith('data:image/png;base64,'),

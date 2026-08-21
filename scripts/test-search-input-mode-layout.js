@@ -169,6 +169,8 @@ badge.setAttribute('data-visible', 'true');
 delete global.LumnoSearchInputMode;
 require(path.resolve(__dirname, '../src/shared/search-input-mode.js'));
 
+let pinyinRuntimeLoadCount = 0;
+const pendingPinyinRuntime = new Promise(() => {});
 const controller = global.LumnoSearchInputMode.createInputModeController(
   {
     container,
@@ -185,8 +187,35 @@ const controller = global.LumnoSearchInputMode.createInputModeController(
     windowObj,
     baseInputPaddingLeft: 44,
     prefixGap: 8,
-    modeBadgeElement: badge
+    modeBadgeElement: badge,
+    getModeMenuItems: () => [],
+    loadPinyinRuntime: () => {
+      pinyinRuntimeLoadCount += 1;
+      return pendingPinyinRuntime;
+    }
   }
+);
+
+assert.strictEqual(
+  pinyinRuntimeLoadCount,
+  0,
+  'controller creation should not start the pinyin runtime load'
+);
+const firstModeMenuOpen = controller.openModeMenu('none');
+assert.ok(
+  firstModeMenuOpen && typeof firstModeMenuOpen.then === 'function',
+  'the first menu open should wait for the pinyin runtime'
+);
+assert.strictEqual(
+  pinyinRuntimeLoadCount,
+  1,
+  'the first menu open should start one pinyin runtime load'
+);
+controller.openModeMenu('none');
+assert.strictEqual(
+  pinyinRuntimeLoadCount,
+  1,
+  'repeated menu opens should reuse the memoized pinyin runtime load'
 );
 
 assert.strictEqual(resizeObservers.length, 1, 'input mode should create one shared layout observer');

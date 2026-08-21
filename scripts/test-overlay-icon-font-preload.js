@@ -90,6 +90,7 @@ assert.deepStrictEqual(
 svgPreloads.forEach((node) => {
   assert.strictEqual(node.rel, 'preload');
   assert.strictEqual(node.type, 'image/svg+xml');
+  assert.strictEqual(node.crossOrigin, 'anonymous');
   assert.strictEqual(node.fetchPriority, 'high');
 });
 fallbackSvgAssets.forEach((assetPath) => {

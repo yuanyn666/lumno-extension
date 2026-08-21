@@ -122,13 +122,11 @@
     const routes = getRoutesApi();
     if (routes && typeof routes.buildLumnoNewtabUrl === 'function') {
       return routes.buildLumnoNewtabUrl(chromeApi, {
-        focus: true,
         notice: options && options.notice === 'file-access' ? 'file-access' : null
       });
     }
     if (routes && typeof routes.buildNewtabUrl === 'function') {
       return routes.buildNewtabUrl(chromeApi, {
-        focus: true,
         notice: options && options.notice === 'file-access' ? 'file-access' : null
       });
     }
@@ -136,7 +134,6 @@
       ? chromeApi.runtime.getURL('src/newtab/lumno-newtab.html')
       : 'src/newtab/lumno-newtab.html';
     const newtabUrl = new URL(baseUrl, 'chrome-extension://lumno/');
-    newtabUrl.searchParams.set('focus', '1');
     if (options && options.notice === 'file-access') {
       newtabUrl.searchParams.set('notice', 'file-access');
     }

@@ -360,31 +360,6 @@ function createFakeWallpaperViewController(config) {
       'data-search-width-tick': tick.searchKey || ''
     });
   });
-  const inputAutoFocusRow = add(
-    widthControl,
-    'div',
-    'x-nt-appearance-setting-row'
-  );
-  const inputAutoFocusTitleGroup = add(
-    inputAutoFocusRow,
-    'span',
-    'x-nt-appearance-setting-title-group'
-  );
-  add(
-    inputAutoFocusTitleGroup,
-    'span',
-    'x-nt-appearance-setting-title',
-    {},
-    'inputAutoFocusTitle'
-  );
-  add(
-    inputAutoFocusTitleGroup,
-    'button',
-    'x-nt-appearance-info-button',
-    { type: 'button' },
-    'inputAutoFocusInfoButton'
-  );
-  addSwitch(inputAutoFocusRow, 'inputAutoFocusToggle');
   const moreSettings = add(
     widthControl,
     'a',
@@ -1228,6 +1203,36 @@ function assertThemeAwareAlternateFaviconAsset() {
   });
 }
 
+function assertAvatarFaviconAssetContract() {
+  const wallpaperSource = fs.readFileSync('src/newtab/wallpaper.js', 'utf8');
+  const preloadSource = fs.readFileSync('src/newtab/wallpaper-preload.js', 'utf8');
+  const avatarOption = wallpaperSource.match(/\{\s*id:\s*'avatar',[\s\S]*?\n\s*\}/);
+  const preloadAvatarOption = preloadSource.match(/avatar:\s*\{[\s\S]*?\n\s*\}/);
+
+  assert.ok(avatarOption, 'favicon options should add the avatar without replacing the existing choices');
+  assert.match(
+    avatarOption[0],
+    /file:\s*'assets\/images\/newtab-avatar-favicon\.png'/,
+    'avatar favicon should use the supplied PNG asset'
+  );
+  assert.match(avatarOption[0], /type:\s*'image\/png'/, 'avatar favicon should declare the PNG mime type');
+  assert.match(avatarOption[0], /sizes:\s*'128x128'/, 'avatar favicon should declare its 128x128 size');
+
+  assert.ok(preloadAvatarOption, 'favicon preload should recognize the avatar id');
+  assert.match(preloadAvatarOption[0], /file:\s*'assets\/images\/newtab-avatar-favicon\.png'/);
+  assert.match(preloadAvatarOption[0], /type:\s*'image\/png'/);
+  assert.match(preloadAvatarOption[0], /sizes:\s*'128x128'/);
+
+  const png = fs.readFileSync('assets/images/newtab-avatar-favicon.png');
+  assert.strictEqual(
+    png.subarray(0, 8).toString('hex'),
+    '89504e470d0a1a0a',
+    'avatar favicon asset should be a valid PNG'
+  );
+  assert.strictEqual(png.readUInt32BE(16), 128, 'avatar favicon PNG should be 128 pixels wide');
+  assert.strictEqual(png.readUInt32BE(20), 128, 'avatar favicon PNG should be 128 pixels tall');
+}
+
 function testNewtabFaviconPreloadAppliesCachedAlternateBeforeMainRuntime() {
   const documentObj = createFakeDocument();
   const windowObj = createFakeWindow();
@@ -1305,6 +1310,36 @@ function testNewtabFaviconPreloadAppliesCachedAlternateBeforeMainRuntime() {
     fallbackHtml,
     /<script src="newtab\.js"><\/script>/,
     'lumno-newtab fallback should not duplicate the primary newtab runtime dependency list'
+  );
+}
+
+function testNewtabFaviconPreloadAppliesCachedAvatarBeforeMainRuntime() {
+  const documentObj = createFakeDocument();
+  const windowObj = createFakeWindow();
+  windowObj.localStorage.setItem(NEWTAB_FAVICON_PRELOAD_STORAGE_KEY, 'avatar');
+
+  vm.runInNewContext(fs.readFileSync('src/newtab/wallpaper-preload.js', 'utf8'), {
+    document: documentObj,
+    window: windowObj,
+    chrome: {
+      runtime: {
+        getURL: (path) => `chrome-extension://abc/${String(path || '').replace(/^\/+/, '')}`
+      }
+    }
+  }, {
+    filename: 'src/newtab/wallpaper-preload.js'
+  });
+
+  const faviconLink = documentObj.head.children.find((child) => child.tagName === 'LINK' &&
+    child.getAttribute('data-lumno-newtab-favicon') === 'true');
+  assert.ok(faviconLink, 'wallpaper preload should apply the cached avatar before main runtime');
+  assert.strictEqual(faviconLink.getAttribute('rel'), 'icon');
+  assert.strictEqual(faviconLink.getAttribute('type'), 'image/png');
+  assert.strictEqual(faviconLink.getAttribute('sizes'), '128x128');
+  assert.strictEqual(faviconLink.getAttribute('data-newtab-favicon-id'), 'avatar');
+  assert.ok(
+    faviconLink.getAttribute('href').includes('assets/images/newtab-avatar-favicon.png'),
+    'cached avatar favicon should preload the supplied PNG asset'
   );
 }
 
@@ -1581,21 +1616,10 @@ vm.runInNewContext(fs.readFileSync('src/newtab/wallpaper.js', 'utf8'), sandbox, 
   filename: 'src/newtab/wallpaper.js'
 });
 
-let inputAutoFocusEnabled = false;
-const inputAutoFocusWrites = [];
-const inputAutoFocusTooltips = [];
 const runtime = sandbox.LumnoNewtabWallpaper.createWallpaperRuntime({
   documentObj,
   windowObj,
   storageArea: null,
-  getInputAutoFocusEnabled: () => inputAutoFocusEnabled,
-  setInputAutoFocusEnabled(value) {
-    inputAutoFocusEnabled = Boolean(value);
-    inputAutoFocusWrites.push(inputAutoFocusEnabled);
-  },
-  showTopActionTooltip(anchor, text) {
-    inputAutoFocusTooltips.push({ anchor, text });
-  },
   t: (_key, fallback) => fallback || '',
   getRiSvg: () => ''
 });
@@ -1647,16 +1671,6 @@ const appearanceScrollBody = getChildByClassName(renderedPanel, 'x-nt-wallpaper-
 const appearanceSection = getChildByClassName(appearanceScrollBody, 'x-nt-appearance-section');
 const searchWidthControl = getChildByClassName(appearanceSection, 'x-nt-search-width-control');
 const searchWidthSlider = searchWidthControl.children[1].children[0];
-const inputAutoFocusRow = getChildByClassName(searchWidthControl, 'x-nt-appearance-setting-row');
-const inputAutoFocusTitleGroup = getChildByClassName(
-  inputAutoFocusRow,
-  'x-nt-appearance-setting-title-group'
-);
-const inputAutoFocusInfoButton = getChildByClassName(
-  inputAutoFocusTitleGroup,
-  'x-nt-appearance-info-button'
-);
-const inputAutoFocusToggle = inputAutoFocusRow.children[1].children[0];
 const moreSettingsLink = getChildByClassName(searchWidthControl, 'x-nt-appearance-more-settings');
 
 assert.ok(appearanceHeader, 'appearance header should be a direct panel child above the scrollable content');
@@ -1664,37 +1678,12 @@ assert.ok(appearanceScrollBody, 'appearance panel content should use one dedicat
 assert.strictEqual(searchWidthControl.getAttribute('data-visible'), 'true');
 assert.strictEqual(searchWidthSlider.disabled, false, 'global scope should still show the search width slider');
 assert.strictEqual(searchWidthSlider.tabIndex, 0, 'global scope search width slider should be tabbable');
-assert.strictEqual(inputAutoFocusToggle.checked, false, 'input auto-focus should default to disabled');
-assert.strictEqual(inputAutoFocusToggle.getAttribute('role'), 'switch');
-assert.strictEqual(inputAutoFocusToggle.getAttribute('aria-checked'), 'false');
 assert.strictEqual(
-  inputAutoFocusInfoButton.getAttribute('aria-label'),
-  'Input auto-focus info'
+  getChildByClassName(searchWidthControl, 'x-nt-appearance-setting-row'),
+  undefined,
+  'the appearance panel should not expose the removed input auto-focus setting'
 );
-inputAutoFocusInfoButton._listeners.focus.forEach((listener) => listener());
-assert.strictEqual(inputAutoFocusTooltips.length, 1);
-assert.strictEqual(inputAutoFocusTooltips[0].anchor, inputAutoFocusInfoButton);
-assert.strictEqual(
-  inputAutoFocusTooltips[0].text,
-  'If you prefer to use the browser’s native address bar, turn this option off. The extension URL will no longer appear in the address bar.'
-);
-inputAutoFocusToggle.checked = true;
-inputAutoFocusToggle._listeners.change.forEach((listener) => listener({ target: inputAutoFocusToggle }));
-assert.deepStrictEqual(inputAutoFocusWrites, [true]);
-assert.strictEqual(inputAutoFocusToggle.getAttribute('aria-checked'), 'true');
 assert.strictEqual(moreSettingsLink.tabIndex, 0, 'global scope search width settings link should be tabbable');
-
-const newtabHtml = fs.readFileSync('src/newtab/newtab.html', 'utf8');
-assert.match(
-  newtabHtml,
-  /\.x-nt-appearance-setting-row\s*\{[\s\S]*?margin-top:\s*8px;/,
-  'input auto-focus should have more separation from the search-width slider'
-);
-const zhCNMessages = JSON.parse(fs.readFileSync('_locales/zh_CN/messages.json', 'utf8'));
-assert.strictEqual(
-  zhCNMessages.newtab_input_auto_focus_help.message,
-  '如倾向使用浏览器原生地址栏，可关闭该选项。关闭后地址栏中的插件 url 将不再显示'
-);
 
 async function testInputAutoFocusHintWaitsForFinalFocusRoute() {
   const pendingRoute = createWallpaperSandbox();
@@ -2509,11 +2498,13 @@ async function testNewtabFaviconOptionsRenderBelowLogoAndPersistSelection() {
 
   assert.ok(faviconGroup, 'Logo section should render a New Tab favicon group');
   assert.strictEqual(faviconTitle.textContent, 'New Tab favicon');
-  assert.strictEqual(faviconOptions.children.length, 2, 'favicon selector should reserve two icon slots');
+  assert.strictEqual(faviconOptions.children.length, 3, 'favicon selector should add an avatar after the two existing choices');
   assert.strictEqual(faviconOptions.children[0].getAttribute('data-newtab-favicon-id'), 'default');
   assert.strictEqual(faviconOptions.children[1].getAttribute('data-newtab-favicon-id'), 'alternate');
+  assert.strictEqual(faviconOptions.children[2].getAttribute('data-newtab-favicon-id'), 'avatar');
   assert.strictEqual(faviconOptions.children[0].getAttribute('data-selected'), 'true');
   assert.strictEqual(faviconOptions.children[1].getAttribute('data-selected'), 'false');
+  assert.strictEqual(faviconOptions.children[2].getAttribute('data-selected'), 'false');
 
   const firstIcon = getDescendantByTagName(faviconOptions.children[0], 'img');
   assert.ok(
@@ -2522,6 +2513,39 @@ async function testNewtabFaviconOptionsRenderBelowLogoAndPersistSelection() {
   );
   const secondIconPreview = getDescendantByClassName(faviconOptions.children[1], 'x-nt-favicon-svg-preview');
   assert.ok(secondIconPreview, 'alternate favicon option should use an inline SVG preview');
+  const avatarIcon = getDescendantByTagName(faviconOptions.children[2], 'img');
+  assert.ok(avatarIcon, 'avatar favicon option should render as an image preview');
+  assert.ok(
+    avatarIcon.src.includes('assets/images/newtab-avatar-favicon.png'),
+    'avatar favicon option should preview the supplied PNG asset'
+  );
+
+  faviconOptions.children[2].click();
+
+  assert.strictEqual(
+    syncStorage.data[NEWTAB_FAVICON_STORAGE_KEY],
+    'avatar',
+    'clicking the avatar option should persist its favicon id'
+  );
+  assert.strictEqual(
+    testWindow.localStorage.getItem(NEWTAB_FAVICON_PRELOAD_STORAGE_KEY),
+    'avatar',
+    'selecting the avatar should cache it for the next New Tab preload'
+  );
+  assert.strictEqual(faviconOptions.children[0].getAttribute('data-selected'), 'false');
+  assert.strictEqual(faviconOptions.children[1].getAttribute('data-selected'), 'false');
+  assert.strictEqual(faviconOptions.children[2].getAttribute('data-selected'), 'true');
+  const faviconLink = testDocument.head.children.find((child) => child.tagName === 'LINK');
+  assert.ok(faviconLink, 'selecting the avatar should apply a document icon link');
+  assert.strictEqual(faviconLink.getAttribute('rel'), 'icon');
+  assert.strictEqual(faviconLink.getAttribute('type'), 'image/png');
+  assert.strictEqual(faviconLink.getAttribute('sizes'), '128x128');
+  assert.strictEqual(faviconLink.getAttribute('data-newtab-favicon-id'), 'avatar');
+  assert.strictEqual(faviconLink.getAttribute('data-lumno-newtab-favicon-theme'), null);
+  assert.ok(
+    faviconLink.getAttribute('href').includes('assets/images/newtab-avatar-favicon.png'),
+    'selecting the avatar should apply the supplied PNG asset to the document'
+  );
 
   faviconOptions.children[1].click();
 
@@ -2537,7 +2561,7 @@ async function testNewtabFaviconOptionsRenderBelowLogoAndPersistSelection() {
   );
   assert.strictEqual(faviconOptions.children[0].getAttribute('data-selected'), 'false');
   assert.strictEqual(faviconOptions.children[1].getAttribute('data-selected'), 'true');
-  const faviconLink = testDocument.head.children.find((child) => child.tagName === 'LINK');
+  assert.strictEqual(faviconOptions.children[2].getAttribute('data-selected'), 'false');
   assert.ok(faviconLink, 'selecting a favicon should apply a document icon link');
   assert.strictEqual(faviconLink.getAttribute('rel'), 'icon');
   assert.strictEqual(faviconLink.getAttribute('type'), 'image/svg+xml');
@@ -2736,6 +2760,7 @@ Promise.resolve()
   .then(() => {
     assertBrandMarkCopy();
     assertThemeAwareAlternateFaviconAsset();
+    assertAvatarFaviconAssetContract();
     assertSquareFaviconOptionCss('src/newtab/newtab.html');
     assertSegmentedTabRadiusCss('src/newtab/newtab.html');
     assertWallpaperBootstrapWaitsForTheme();
@@ -2743,6 +2768,7 @@ Promise.resolve()
   })
   .then(testInputAutoFocusHintWaitsForFinalFocusRoute)
   .then(testNewtabFaviconPreloadAppliesCachedAlternateBeforeMainRuntime)
+  .then(testNewtabFaviconPreloadAppliesCachedAvatarBeforeMainRuntime)
   .then(testWallpaperPreloadUsesTheCachedResolvedMode)
   .then(testBuiltInWallpaperBootstrapDefersCustomCatalogRead)
   .then(testWallpaperTileIntentReusesDecodedImagePromise)

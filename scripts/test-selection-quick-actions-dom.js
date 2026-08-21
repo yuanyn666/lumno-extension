@@ -266,7 +266,7 @@ function wait(ms) {
     clientY: 40
   }));
 
-  await wait(460);
+  await wait(520);
   const host = window.document.getElementById('_x_extension_selection_quick_actions_host_2026_unique_');
   assert(host, 'high-confidence selection should create the quick action host');
   assert.strictEqual(host.hidden, false);

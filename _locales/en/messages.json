@@ -631,6 +631,9 @@
   "newtab_favicon_name_alternate": {
     "message": "Alternate"
   },
+  "newtab_favicon_name_avatar": {
+    "message": "My avatar"
+  },
   "newtab_favicon_select_label": {
     "message": "Select {name} favicon"
   },

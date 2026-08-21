@@ -1134,6 +1134,11 @@
       : (config.chromeApi && config.chromeApi.runtime && typeof config.chromeApi.runtime.getURL === 'function'
         ? config.chromeApi.runtime.getURL.bind(config.chromeApi.runtime)
         : null);
+    // chrome://favicon2 is a browser-internal resource. It can be useful to
+    // browser-owned pages, but an extension page cannot load it as an image or
+    // fetch it from a service worker. Keep it out of extension render plans and
+    // let the extension _favicon endpoint fall back to the stable UI glyph.
+    const allowChromeSchemeFavicon = config.allowChromeSchemeFavicon === true || !getRuntimeUrl;
     const shouldBlockHost = typeof config.shouldBlockFaviconForHost === 'function'
       ? config.shouldBlockFaviconForHost
       : shouldBlockFaviconForHost;
@@ -1226,7 +1231,7 @@
 
     function getResolverChromeFaviconUrl(pageUrl) {
       const page = getCanonicalFaviconPage(pageUrl);
-      if (!page) {
+      if (!page || !allowChromeSchemeFavicon) {
         return '';
       }
       if (customChromeFaviconUrl) {
@@ -1313,6 +1318,9 @@
     function getSafeFaviconCandidateUrl(value, pageUrl, candidateKind) {
       const raw = String(value || '').trim();
       if (isResolverOtherExtensionPageUrl(pageUrl)) {
+        return '';
+      }
+      if (!allowChromeSchemeFavicon && isChromeMonogramFaviconUrl(raw)) {
         return '';
       }
       if (!raw || isBlockedFaviconUrl(raw, pageUrl, candidateKind)) {

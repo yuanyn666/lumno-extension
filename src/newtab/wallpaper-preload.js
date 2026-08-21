@@ -19,6 +19,11 @@
       file: 'assets/images/lumno-newtab-favicon.svg',
       type: 'image/svg+xml',
       sizes: 'any'
+    },
+    avatar: {
+      file: 'assets/images/newtab-avatar-favicon.png',
+      type: 'image/png',
+      sizes: '128x128'
     }
   };
 

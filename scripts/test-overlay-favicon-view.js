@@ -1051,11 +1051,12 @@ async function testOverlayOpenTabPolicyRecoveryIsSafeInBothDirections() {
   assert.strictEqual(currentImg.src.includes('gstatic'), false, 'strict open-tab rows should not introduce a third-party proxy');
 }
 
-async function testOverlayUsesChromeFavicon2ForBrowserInternalPages() {
+async function testOverlayRejectsChromeFavicon2ForBrowserInternalPages() {
   const requestedUrls = [];
   const {
     runtime,
     browserPageUrl,
+    browserPageExtensionUrl,
     browserPageFavicon2Url
   } = createRuntime({
     requestFaviconData(url) {
@@ -1085,13 +1086,14 @@ async function testOverlayUsesChromeFavicon2ForBrowserInternalPages() {
   assert.strictEqual(failed, false, 'browser internal pages should not use the local-network fallback path');
   assert.strictEqual(
     img.src,
-    browserPageFavicon2Url,
-    'browser internal pages should render chrome://favicon2 directly'
+    browserPageExtensionUrl,
+    'browser internal pages should replace chrome://favicon2 with the extension _favicon endpoint'
   );
+  assert.notStrictEqual(img.src, browserPageFavicon2Url, 'overlay render plans must reject chrome://favicon2');
   assert.deepStrictEqual(
     requestedUrls,
     [],
-    'browser internal favicon2 should not be converted into a background data request first'
+    'rejected chrome://favicon2 should not be converted into a background data request'
   );
 }
 
@@ -1140,7 +1142,7 @@ testOverlayResolvesLocalFaviconThroughDataUrl()
   .then(testOverlayPolicyEnableRecoversReplacedStrictFallback)
   .then(testOverlayOpenTabPolicyRecoveryIsSafeInBothDirections)
   .then(testOverlayPolicyRecoverySignalsFailedReactRows)
-  .then(testOverlayUsesChromeFavicon2ForBrowserInternalPages)
+  .then(testOverlayRejectsChromeFavicon2ForBrowserInternalPages)
   .then(testOverlayUsesExtensionFaviconProxyForBrowserInternalPagesWithoutExplicitIcon)
   .then(testOverlayRendererLetsLocalFaviconsReachRuntime)
   .then(testOverlayRendererDelegatesFallbackStateToReact)

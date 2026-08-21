@@ -79,7 +79,10 @@ sandbox.LumnoFaviconViewCore = {
       getLastWorkingFaviconSrc() {
         return '';
       },
-      restoreWorkingFaviconOrFallback() {
+      restoreWorkingFaviconOrFallback(img, _previousSrc, options) {
+        if (options && typeof options.applyFallbackIcon === 'function') {
+          options.applyFallbackIcon(img);
+        }
         return false;
       },
       attachFaviconData() {},
@@ -164,7 +167,12 @@ const runtime = sandbox.LumnoNewtabFaviconView.createFaviconViewRuntime({
   assert.strictEqual(img.src, 'chrome-extension://abc/_favicon/?pageUrl=https%3A%2F%2Fexample.test%2Fpage&size=128');
   const browserImg = createFakeImage();
   runtime.attachFaviconWithFallbacks(browserImg, 'chrome://newtab/', 'newtab');
-  assert.strictEqual(browserImg.src, 'chrome://favicon2/?pageUrl=chrome%3A%2F%2Fnewtab%2F&size=128');
+  assert.strictEqual(browserImg.src, '', 'extension pages should not render chrome://favicon2');
+  assert.strictEqual(
+    browserImg.getAttribute('data-fallback-icon'),
+    'true',
+    'browser pages without an extension _favicon candidate should use the stable UI fallback'
+  );
   browserImg._xThemeFaviconSession += 1;
   await wait(18);
   assert.strictEqual(img.src, 'https://t2.gstatic.cn/faviconV2?client=SOCIAL&type=FAVICON&fallback_opts=TYPE%2CSIZE%2CURL&url=https%3A%2F%2Fexample.test%2Fpage&size=128');

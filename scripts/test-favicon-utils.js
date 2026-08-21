@@ -325,8 +325,17 @@ assert.strictEqual(
 );
 assert.strictEqual(
   browserPageRenderCandidates.browserUrl,
-  'chrome://favicon2/?pageUrl=chrome%3A%2F%2Fextensions%2F&size=128',
-  'browser-internal render candidates should keep chrome://favicon2 as fallback'
+  '',
+  'extension render candidates should not expose the privileged chrome://favicon2 fallback'
+);
+assert.strictEqual(
+  resolver.getSafeFaviconCandidateUrl(
+    'chrome://favicon2/?pageUrl=chrome%3A%2F%2Fextensions%2F&size=128',
+    'chrome://extensions/',
+    'browser-favicon'
+  ),
+  '',
+  'extension resolvers should reject explicit chrome://favicon2 render candidates'
 );
 assert.strictEqual(
   resolver.getPageFaviconCandidateUrl('chrome-extension://abc/src/options/options.html'),
@@ -373,11 +382,11 @@ const plan = resolver.buildFaviconCandidatePlan({
 });
 assert.strictEqual(
   plan.map((candidate) => candidate.kind).join(','),
-  'primary,browser,gstatic',
-  'candidate plans should dedupe extension primary URL before browser/gstatic fallbacks'
+  'primary,gstatic',
+  'candidate plans should keep extension and gstatic fallbacks without chrome://favicon2'
 );
 assert.strictEqual(resolver.getFaviconProxyCheckKind(plan[0]), 'extension');
-assert.strictEqual(resolver.getFaviconProxyCheckKind(plan[2]), 'gstatic');
+assert.strictEqual(resolver.getFaviconProxyCheckKind(plan[1]), 'gstatic');
 const pageSpecificPlan = resolver.buildFaviconCandidatePlan({
   pageUrl: 'https://x.com/home',
   pageSpecificUrl: 'data:image/png;base64,eA==',

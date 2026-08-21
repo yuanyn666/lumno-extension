@@ -13,7 +13,7 @@
   const TITLE_CYCLE_FIRST_DELAY_MS = 520;
   const TEXT_SWAP_FALLBACK_DURATION_MS = 200;
   const SITE_SEARCH_OPTIONS_PAGE_PATH = 'src/options/options.html#shortcuts';
-  const FOCUSED_NEWTAB_RELATIVE_PAGE_PATH = '../newtab/lumno-newtab.html?focus=1';
+  const NEWTAB_RELATIVE_PAGE_PATH = '../newtab/lumno-newtab.html';
   const LUMNO_CHROME_WEB_STORE_URL = 'https://chromewebstore.google.com/detail/lumno-%E8%81%9A%E7%84%A6%E6%90%9C%E7%B4%A2%E6%96%B0%E6%A0%87%E7%AD%BE%E9%A1%B5/nggfkkbmogmadfoikakkfegkoilfcfao?utm_source=item-share-cb';
   const ACTION_MESSAGE_BY_ID = Object.freeze({
     openShortcuts: 'openExtensionShortcutsPage',
@@ -375,16 +375,16 @@
     const routes = globalThis.LumnoExtensionRoutes;
     let url = '';
     if (routes && typeof routes.buildLumnoNewtabUrl === 'function') {
-      url = routes.buildLumnoNewtabUrl(chromeApi, { focus: true });
+      url = routes.buildLumnoNewtabUrl(chromeApi);
     }
     if (!url && chromeApi && chromeApi.runtime && typeof chromeApi.runtime.getURL === 'function') {
-      url = chromeApi.runtime.getURL('src/newtab/lumno-newtab.html?focus=1');
+      url = chromeApi.runtime.getURL('src/newtab/lumno-newtab.html');
     }
     if (!url && typeof window !== 'undefined' && window.location) {
       try {
-        url = new URL(FOCUSED_NEWTAB_RELATIVE_PAGE_PATH, window.location.href).toString();
+        url = new URL(NEWTAB_RELATIVE_PAGE_PATH, window.location.href).toString();
       } catch (error) {
-        url = FOCUSED_NEWTAB_RELATIVE_PAGE_PATH;
+        url = NEWTAB_RELATIVE_PAGE_PATH;
       }
     }
     if (!url || typeof window === 'undefined' || !window.location) {

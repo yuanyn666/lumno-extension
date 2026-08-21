@@ -11,19 +11,22 @@
       id: '_x_extension_remixicon_search_svg_preload_2026_unique_',
       path: 'assets/remixicon/icons/search-line.svg',
       as: 'image',
-      type: 'image/svg+xml'
+      type: 'image/svg+xml',
+      crossOrigin: 'anonymous'
     },
     {
       id: '_x_extension_remixicon_settings_svg_preload_2026_unique_',
       path: 'assets/remixicon/icons/settings-line.svg',
       as: 'image',
-      type: 'image/svg+xml'
+      type: 'image/svg+xml',
+      crossOrigin: 'anonymous'
     },
     {
       id: '_x_extension_remixicon_brush_2_svg_preload_2026_unique_',
       path: 'assets/remixicon/icons/brush-2-line.svg',
       as: 'image',
-      type: 'image/svg+xml'
+      type: 'image/svg+xml',
+      crossOrigin: 'anonymous'
     }
   ];
 

@@ -20,62 +20,35 @@ const sharedSearchInputCss = fs.readFileSync(
 );
 const dockReactSource = fs.readFileSync(path.join(repoRoot, 'react-src/newtab/dock.tsx'), 'utf8');
 
-function testNewtabRedirectFocusHintIsConsumedOnce() {
+function testNewtabDoesNotStealBrowserFocus() {
   assert.match(
     newtabRedirectSource,
-    /target\.searchParams\.set\('focus', '1'\);[\s\S]*?window\.location\.replace\(target\.href\);/,
-    'the redirect shell should keep the explicit focus handoff for the real New Tab page'
-  );
-  const recoverySource = newtabSource.slice(
-    newtabSource.indexOf('function scheduleAutoFocusRecovery()'),
-    newtabSource.indexOf('scheduleAutoFocusRecovery();')
-  );
-  assert.match(
-    recoverySource,
-    /let forceInitialFocusPending = hasExplicitFocusHint;[\s\S]*?const focused = tryFocusSearchInput\(forceInitialFocusPending\);[\s\S]*?if \(focused\) \{\s*forceInitialFocusPending = false;/,
-    'the explicit New Tab focus hint should be consumed after the first successful input focus'
+    /target\.searchParams\.delete\('focus'\);[\s\S]*?window\.location\.replace\(target\.href\);/,
+    'the compatibility redirect should strip legacy automatic-focus hints'
   );
   assert.doesNotMatch(
-    recoverySource,
-    /tryFocusSearchInput\(hasExplicitFocusHint\)/,
-    'New Tab retries and lifecycle events should not permanently force focus back to the input'
-  );
-  assert.match(
-    recoverySource,
-    /if \(!newtabInputAutoFocusEnabled\) \{\s*return;/,
-    'New Tab focus recovery should respect the user-controlled auto-focus preference'
+    newtabSource,
+    /scheduleAutoFocusRecovery|attemptFocusIfVisible|forceInitialFocusPending/,
+    'opening and reactivating the New Tab should never focus its search input automatically'
   );
   assert.match(
     newtabSource,
-    /initialNewtabInputAutoFocusReadyTask\.then\(\(\) => \{\s*scheduleAutoFocusRecovery\(\);/,
-    'New Tab should load the persisted auto-focus preference before scheduling focus recovery'
+    /message\.action !== 'lumno:newtab-focus-input'[\s\S]*?activateNewtabShortcutFocus\(\)/,
+    'an explicit focus shortcut should retain its user-initiated behavior'
   );
   assert.match(
-    recoverySource,
-    /new window\.MutationObserver\([\s\S]*?data-nt-ready[\s\S]*?setTimeout\(attemptFocusIfVisible, 0\)/,
-    'New Tab should retry automatic focus when a readiness-gated destination becomes visible'
-  );
-  const preferenceLoadSource = newtabSource.slice(
-    newtabSource.indexOf('function loadNewtabInputAutoFocusEnabled()'),
-    newtabSource.indexOf('const initialNewtabInputAutoFocusReadyTask')
+    newtabSource,
+    /window\.addEventListener\('focus',[\s\S]*?setTimeout\(refreshTabsIfIdle, 0\)[\s\S]*?window\.addEventListener\('pageshow',[\s\S]*?refreshTabsIfIdle\(\)/,
+    'removing automatic focus should preserve lifecycle-driven tab refreshes'
   );
   assert.doesNotMatch(
-    preferenceLoadSource,
-    /storageArea\.set/,
-    'loading a missing auto-focus preference should not persist the new default over existing users'
-  );
-  const preferenceChangeSource = newtabSource.slice(
-    newtabSource.indexOf('if (changes[NEWTAB_INPUT_AUTO_FOCUS_ENABLED_STORAGE_KEY])'),
-    newtabSource.indexOf('if (changes[RECENT_COUNT_STORAGE_KEY])')
-  );
-  assert.doesNotMatch(
-    preferenceChangeSource,
-    /storageArea\.set/,
-    'removing the auto-focus preference should restore the default without writing it back'
+    newtabSource,
+    /inputAutoFocusReady|inputAutoFocusVisibilityGate|getInputAutoFocusEnabled|setInputAutoFocusEnabled/,
+    'the appearance runtime should no longer expose automatic-focus controls'
   );
 }
 
-testNewtabRedirectFocusHintIsConsumedOnce();
+testNewtabDoesNotStealBrowserFocus();
 
 class FakeStyle {
   constructor() {
@@ -875,7 +848,7 @@ function testContinuousResizeKeepsDockDensityStableUntilSettle() {
 function testInitialEntryMotionIsStaggeredAndTransient() {
   assert.match(
     newtabSource,
-    /const initialWallpaperOverlayReadyTask = bootstrapInitialWallpaperOverlay\(\);[\s\S]*?const initialWallpaperVisualReadyTask = Promise\.all\(\[\s*bootstrapInitialThemeMode\(\),\s*initialWallpaperOverlayReadyTask\.then\(\(\) => bootstrapInitialWallpaper\(\)\),\s*initialWallpaperOverlayReadyTask,\s*bootstrapInitialWallpaperEffect\(\)\s*\]\)\.then\(\(\) => waitForInitialWallpaperEffectVisual\(\)\)[\s\S]*?markInitialWallpaperVisualReady\(\);[\s\S]*?const initialAppearanceReadyTask = Promise\.all\(\[\s*initialWallpaperVisualReadyTask,\s*bootstrapInitialNewtabFavicon\(\)[\s\S]*?const initialLanguageReadyTask = bootstrapInitialLanguageMode\(\);[\s\S]*?const initialMotionPreferenceReadyTask[\s\S]*?const initialVisualReadyPromise = Promise\.all\(\[\s*initialAppearanceReadyTask,\s*initialBookmarkViewModeReadyPromise,[\s\S]*?initialMotionPreferenceReadyTask[\s\S]*?initialNewtabSkipsEntryMotion = shouldSkipNewtabEntryMotion\(\);[\s\S]*?if \(!initialNewtabSkipsEntryMotion\) \{[\s\S]*?markNewtabReady\(\);[\s\S]*?Promise\.all\(\[\s*initialVisualReadyPromise,\s*initialLanguageReadyTask,\s*sectionPolicyReadyPromise\s*\]\)/,
+    /const initialWallpaperOverlayReadyTask = bootstrapInitialWallpaperOverlay\(\);[\s\S]*?const initialWallpaperVisualReadyTask = Promise\.all\(\[\s*bootstrapInitialThemeMode\(\),\s*initialWallpaperOverlayReadyTask\.then\(\(\) => bootstrapInitialWallpaper\(\)\),\s*initialWallpaperOverlayReadyTask,\s*bootstrapInitialWallpaperEffect\(\)\s*\]\)\.then\(\(\) => waitForInitialWallpaperEffectVisual\(\)\)[\s\S]*?markInitialWallpaperVisualReady\(\);[\s\S]*?const initialAppearanceReadyTask = Promise\.all\(\[\s*initialWallpaperVisualReadyTask,\s*bootstrapInitialNewtabFavicon\(\)[\s\S]*?const initialLanguageReadyTask = bootstrapInitialLanguageMode\(\);[\s\S]*?const initialMotionPreferenceReadyTask[\s\S]*?const initialVisualReadyPromise = Promise\.all\(\[\s*initialAppearanceReadyTask,\s*initialBookmarkViewModeReadyPromise,[\s\S]*?initialMotionPreferenceReadyTask[\s\S]*?initialNewtabSkipsEntryMotion = shouldSkipNewtabEntryMotion\(\);[\s\S]*?if \(!initialNewtabSkipsEntryMotion\) \{[\s\S]*?markNewtabReady\(\);[\s\S]*?Promise\.all\(\[\s*initialLanguageReadyTask,\s*sectionPolicyReadyPromise,\s*initialShortcutsReadyTask\s*\]\)[\s\S]*?const recentSitesReadyTask = loadRecentSites\(\);\s*const bookmarksReadyTask = loadBookmarks\(\);[\s\S]*?return Promise\.all\(\[recentSitesReadyTask, bookmarksReadyTask\]\);[\s\S]*?markNewtabReady\(\);[\s\S]*?Promise\.all\(\[\s*initialVisualReadyPromise,\s*initialLanguageReadyTask,\s*sectionPolicyReadyPromise\s*\]\)/,
     'critical appearance and motion preference state should settle before the mode-specific entry path'
   );
   assert.match(
@@ -917,11 +890,6 @@ function testInitialEntryMotionIsStaggeredAndTransient() {
     newtabSource,
     /function finishNewtabEntryAnimation\(\)[\s\S]*?setAttribute\('data-nt-enter', 'done'\)[\s\S]*?root\.setAttribute\('data-lumno-search-entry', 'done'\)[\s\S]*?function startNewtabEntryAnimation\(\)[\s\S]*?const reduceMotion = shouldSkipNewtabEntryMotion\(\);[\s\S]*?const entryState = reduceMotion \? 'done' : 'run';[\s\S]*?setAttribute\('data-nt-enter', entryState\)[\s\S]*?root\.setAttribute\('data-lumno-search-entry', entryState\)[\s\S]*?window\.setTimeout\(\s*finishNewtabEntryAnimation,[\s\S]*?NEWTAB_ENTRY_ANIMATION_TOTAL_MS/,
     'new-tab entrance motion should drive the shared search-entry state and release it after the sequence'
-  );
-  assert.match(
-    newtabSource,
-    /const newtabEntryAnimationReadyPromise = new Promise[\s\S]*?function finishNewtabEntryAnimation\(\)[\s\S]*?resolveNewtabEntryAnimationReady\(\)[\s\S]*?function startNewtabEntryAnimation\(\)[\s\S]*?if \(reduceMotion\)[\s\S]*?resolveNewtabEntryAnimationReady\(\)[\s\S]*?inputAutoFocusVisibilityGate:\s*newtabEntryAnimationReadyPromise/,
-    'the input auto-focus hint component gate should release after normal, interrupted, or reduced-motion entry completion'
   );
   assert.match(
     newtabSource,
