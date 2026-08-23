@@ -5,7 +5,6 @@
   const effects = globalThis.LumnoNewtabWallpaperEffects;
   if (!root ||
       !body ||
-      root.getAttribute('data-nt-focus-route') !== 'true' ||
       !preloadState ||
       !preloadState.wallpaper ||
       !preloadState.imageUrl ||

@@ -4,12 +4,49 @@
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <meta name="theme-color" content="#ffffff" />
+    <meta name="color-scheme" content="light dark" />
     <link rel="icon" type="image/svg+xml" sizes="any" href="../../assets/images/lumno-newtab-favicon.svg" data-lumno-newtab-favicon="true" data-newtab-favicon-id="alternate" />
     <title>New Tab</title>
+    <style data-nt-first-paint="true">
+      html {
+        background-color: #ffffff;
+        color-scheme: light;
+      }
+      @media (prefers-color-scheme: dark) {
+        html {
+          background-color: #111111;
+          color-scheme: dark;
+        }
+        html body:not([data-theme]) {
+          --x-nt-bg: #111111;
+          background-color: #111111;
+          color-scheme: dark;
+        }
+      }
+      html[data-wallpaper-preload-theme="light"] {
+        background-color: #ffffff;
+        color-scheme: light;
+      }
+      html[data-wallpaper-preload-theme="light"] body:not([data-theme]) {
+        --x-nt-bg: #ffffff;
+        background-color: #ffffff;
+        color-scheme: light;
+      }
+      html[data-wallpaper-preload-theme="dark"] {
+        background-color: #111111;
+        color-scheme: dark;
+      }
+      html[data-wallpaper-preload-theme="dark"] body:not([data-theme]) {
+        --x-nt-bg: #111111;
+        background-color: #111111;
+        color-scheme: dark;
+      }
+    </style>
+    <script src="theme-preload.js"></script>
     <script src="../shared/settings.js"></script>
+    <script src="wallpaper-preload.js"></script>
     <script src="../shared/motion-preload.js"></script>
     <script src="wallpaper-effects.js"></script>
-    <script src="wallpaper-preload.js"></script>
     <link rel="stylesheet" href="../../assets/fonts/open-sans/open-sans.css" />
     <link rel="stylesheet" href="../../assets/remixicon/fonts/remixicon.css" />
     <link rel="stylesheet" href="../shared/search-input.css" />
@@ -356,6 +393,15 @@
         --select-selected-text: #f8fafc;
       }
       body[data-theme="dark"][data-wallpaper-active="true"] {
+        --x-nt-wallpaper-overlay: var(--x-nt-wallpaper-effect-overlay);
+        --x-nt-wallpaper-effect-overlay: linear-gradient(
+          180deg,
+          rgb(0 0 0 / var(--x-nt-wallpaper-overlay-dark-top, 44%)) 0%,
+          rgb(0 0 0 / var(--x-nt-wallpaper-overlay-dark-mid, 20%)) 42%,
+          rgb(0 0 0 / var(--x-nt-wallpaper-overlay-dark-bottom, 50%)) 100%
+        );
+      }
+      html[data-wallpaper-preload-theme="dark"][data-wallpaper-active="true"] body:not([data-theme]) {
         --x-nt-wallpaper-overlay: var(--x-nt-wallpaper-effect-overlay);
         --x-nt-wallpaper-effect-overlay: linear-gradient(
           180deg,

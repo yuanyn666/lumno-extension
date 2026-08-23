@@ -67,7 +67,7 @@ const preloadSource = fs.readFileSync(preloadPath, 'utf8');
 vm.runInNewContext(preloadSource, sandbox, { filename: 'icon-font-preload.js' });
 vm.runInNewContext(preloadSource, sandbox, { filename: 'icon-font-preload.js' });
 
-assert.strictEqual(appended.length, 4, 'Remix asset preloads should be idempotent');
+assert.strictEqual(appended.length, 1, 'the Remix font preload should be idempotent');
 const fontPreload = appended.find((node) => (
   node.id === '_x_extension_remixicon_font_preload_2026_unique_'
 ));
@@ -81,18 +81,11 @@ assert.strictEqual(
   fontPreload.href,
   'chrome-extension://lumno/assets/remixicon/fonts/remixicon.woff2'
 );
-const svgPreloads = appended.filter((node) => node.as === 'image');
-assert.deepStrictEqual(
-  svgPreloads.map((node) => node.href),
-  fallbackSvgAssets.map((assetPath) => `chrome-extension://lumno/${assetPath}`),
-  'the first-frame Remix SVG masks should be warmed before Overlay React mounts'
+assert.strictEqual(
+  appended.some((node) => node.as === 'image'),
+  false,
+  'conditional Overlay SVG masks should load on demand instead of producing unused-preload warnings'
 );
-svgPreloads.forEach((node) => {
-  assert.strictEqual(node.rel, 'preload');
-  assert.strictEqual(node.type, 'image/svg+xml');
-  assert.strictEqual(node.crossOrigin, 'anonymous');
-  assert.strictEqual(node.fetchPriority, 'high');
-});
 fallbackSvgAssets.forEach((assetPath) => {
   const svg = fs.readFileSync(path.join(repoRoot, assetPath), 'utf8');
   assert.match(

@@ -198,6 +198,12 @@ assert(
   'Options should keep the synchronous theme cache current after reads and changes'
 );
 assert(
+  optionsSource.includes("const NEWTAB_THEME_PRELOAD_STORAGE_KEY = '_x_extension_newtab_theme_preload_2026_unique_';") &&
+    optionsSource.includes('cacheNewtabThemeMode(storedMode, currentNewtabThemeMode);') &&
+    optionsSource.includes('cacheNewtabThemeMode(nextMode, currentNewtabThemeMode);'),
+  'Options should also keep the next new-tab first-paint theme cache current'
+);
+assert(
   html.includes('data-tab="general" data-active="true"') &&
     html.includes('data-content="general" data-active="true"'),
   'Options should statically paint the default General route'

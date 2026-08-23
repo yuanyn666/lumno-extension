@@ -180,6 +180,7 @@
   const NEWTAB_ZEN_MODE_STORAGE_KEY = '_x_extension_newtab_zen_mode_2026_unique_';
   const NEWTAB_THEME_MODE_STORAGE_KEY = '_x_extension_newtab_theme_mode_2026_unique_';
   const NEWTAB_THEME_SCOPE_STORAGE_KEY = '_x_extension_newtab_theme_scope_2026_unique_';
+  const NEWTAB_THEME_PRELOAD_STORAGE_KEY = '_x_extension_newtab_theme_preload_2026_unique_';
   const NEWTAB_WALLPAPER_STORAGE_KEY = '_x_extension_newtab_wallpaper_2026_unique_';
   const NEWTAB_LOCAL_WALLPAPER_STORAGE_KEY = '_x_extension_newtab_local_wallpaper_2026_unique_';
   const NEWTAB_WALLPAPER_OVERLAY_STORAGE_KEY = '_x_extension_newtab_wallpaper_overlay_2026_unique_';
@@ -4074,6 +4075,13 @@
   function applyThemeMode(mode, options) {
     const previousThemeMode = currentThemeMode;
     currentThemeMode = normalizeThemeMode(mode);
+    try {
+      if (window.localStorage) {
+        window.localStorage.setItem(NEWTAB_THEME_PRELOAD_STORAGE_KEY, currentThemeMode);
+      }
+    } catch (e) {
+      // The synchronous first-paint cache is optional; chrome.storage remains authoritative.
+    }
     const mediaMatchesOverride = options && typeof options.mediaMatches === 'boolean'
       ? options.mediaMatches
       : null;
@@ -4083,6 +4091,7 @@
     syncBookmarkTopbarSurfaceColorForTheme(resolved);
     if (document.documentElement) {
       document.documentElement.removeAttribute('data-wallpaper-preload-theme');
+      document.documentElement.style.backgroundColor = resolved === 'dark' ? '#111111' : '#ffffff';
       document.documentElement.style.colorScheme = resolved;
     }
     const themeColorMeta = document.querySelector('meta[name="theme-color"]');

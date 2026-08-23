@@ -328,14 +328,21 @@ assert.match(
   'the New Tab should wait for the selected wallpaper effect to render before becoming ready'
 );
 assert.ok(
-  newtabHtml.indexOf('<script src="wallpaper-effects.js"></script>') <
-    newtabHtml.indexOf('<script src="wallpaper-preload.js"></script>'),
-  'the wallpaper effect renderer should load before the head preload fast path'
+  newtabHtml.indexOf('<script src="wallpaper-preload.js"></script>') <
+    newtabHtml.indexOf('<script src="../shared/motion-preload.js"></script>') &&
+    newtabHtml.indexOf('<script src="wallpaper-preload.js"></script>') <
+      newtabHtml.indexOf('<script src="wallpaper-effects.js"></script>'),
+  'the cached wallpaper should paint before non-visual startup scripts and the full effect renderer parse'
 );
 assert.ok(
   newtabHtml.indexOf('<script src="wallpaper-effect-preload.js"></script>') <
     newtabHtml.indexOf('<div id="_x_extension_newtab_root_2024_unique_"'),
-  'the focused-route wallpaper effect should start before New Tab content bootstraps'
+  'the cached wallpaper effect should start before New Tab content bootstraps'
+);
+assert.doesNotMatch(
+  effectPreloadSource,
+  /data-nt-focus-route/,
+  'cached wallpaper effects should not depend on the retired automatic-focus route'
 );
 assert.match(
   wallpaperSource,
@@ -433,7 +440,7 @@ async function testEffectRefreshWaitsForPaint() {
   assert.notStrictEqual(createdCanvases[0].style.opacity, '0');
 }
 
-async function testFocusedRoutePreloadsEffectBeforeContent() {
+async function testCachedWallpaperPreloadsEffectBeforeContent() {
   const attributes = new Map();
   const body = {
     setAttribute(name, value) {
@@ -453,11 +460,7 @@ async function testFocusedRoutePreloadsEffectBeforeContent() {
     console,
     document: {
       body,
-      documentElement: {
-        getAttribute(name) {
-          return name === 'data-nt-focus-route' ? 'true' : null;
-        }
-      }
+      documentElement: {}
     },
     LumnoNewtabWallpaperEffects: {
       createWallpaperEffects() {
@@ -489,7 +492,7 @@ async function testFocusedRoutePreloadsEffectBeforeContent() {
 
 Promise.all([
   testEffectRefreshWaitsForPaint(),
-  testFocusedRoutePreloadsEffectBeforeContent()
+  testCachedWallpaperPreloadsEffectBeforeContent()
 ]).then(() => {
   process.stdout.write('new tab wallpaper effects tests passed\n');
 }).catch((error) => {

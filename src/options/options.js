@@ -810,6 +810,7 @@
 
   const THEME_STORAGE_KEY = '_x_extension_theme_mode_2024_unique_';
   const OPTIONS_THEME_PRELOAD_STORAGE_KEY = '_x_extension_options_theme_preload_2026_unique_';
+  const NEWTAB_THEME_PRELOAD_STORAGE_KEY = '_x_extension_newtab_theme_preload_2026_unique_';
   const LANGUAGE_STORAGE_KEY = '_x_extension_language_2024_unique_';
   const RECENT_MODE_STORAGE_KEY = '_x_extension_recent_mode_2024_unique_';
   const RECENT_COUNT_STORAGE_KEY = '_x_extension_recent_count_2024_unique_';
@@ -4292,6 +4293,7 @@
     const updates = getThemeStorageUpdate(mode);
     const nextMode = updates[THEME_STORAGE_KEY];
     cacheOptionsThemeMode(nextMode);
+    cacheNewtabThemeMode(nextMode, currentNewtabThemeMode);
     storageArea.set(updates, () => {
       updateThemeButtons(nextMode);
       applyResolvedTheme(resolveTheme(nextMode));
@@ -4313,10 +4315,35 @@
         resolve('system');
         return;
       }
-      storageArea.get([THEME_STORAGE_KEY], (result) => {
-        resolve((result && result[THEME_STORAGE_KEY]) || 'system');
+      storageArea.get([THEME_STORAGE_KEY, NEWTAB_THEME_MODE_STORAGE_KEY], (result) => {
+        const storedMode = (result && result[THEME_STORAGE_KEY]) || 'system';
+        currentNewtabThemeMode = normalizeNewtabThemePreloadMode(
+          result && result[NEWTAB_THEME_MODE_STORAGE_KEY]
+        );
+        cacheNewtabThemeMode(storedMode, currentNewtabThemeMode);
+        resolve(storedMode);
       });
     });
+  }
+
+  let currentNewtabThemeMode = 'global';
+
+  function normalizeNewtabThemePreloadMode(mode) {
+    return mode === 'dark' || mode === 'light' ? mode : 'global';
+  }
+
+  function cacheNewtabThemeMode(globalMode, newtabMode) {
+    const normalizedNewtabMode = normalizeNewtabThemePreloadMode(newtabMode);
+    const effectiveMode = normalizedNewtabMode === 'global'
+      ? (globalMode === 'dark' || globalMode === 'light' ? globalMode : 'system')
+      : normalizedNewtabMode;
+    try {
+      if (window.localStorage) {
+        window.localStorage.setItem(NEWTAB_THEME_PRELOAD_STORAGE_KEY, effectiveMode);
+      }
+    } catch (e) {
+      // The new-tab runtime refreshes this best-effort first-paint cache as well.
+    }
   }
 
   function cacheOptionsThemeMode(mode) {
@@ -6651,8 +6678,15 @@
     }
     if (changes[THEME_STORAGE_KEY]) {
       const nextMode = changes[THEME_STORAGE_KEY].newValue || 'system';
+      cacheNewtabThemeMode(nextMode, currentNewtabThemeMode);
       updateThemeButtons(nextMode);
       applyResolvedTheme(resolveTheme(nextMode));
+    }
+    if (changes[NEWTAB_THEME_MODE_STORAGE_KEY]) {
+      currentNewtabThemeMode = normalizeNewtabThemePreloadMode(
+        changes[NEWTAB_THEME_MODE_STORAGE_KEY].newValue
+      );
+      cacheNewtabThemeMode(currentThemeMode, currentNewtabThemeMode);
     }
     if (changes[LANGUAGE_STORAGE_KEY]) {
       applyLanguageMode(changes[LANGUAGE_STORAGE_KEY].newValue || 'system');

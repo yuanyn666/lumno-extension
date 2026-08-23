@@ -6,6 +6,10 @@ const repoRoot = path.resolve(__dirname, '..');
 const html = fs.readFileSync(path.join(repoRoot, 'src/newtab/newtab.html'), 'utf8');
 const newtabSource = fs.readFileSync(path.join(repoRoot, 'src/newtab/newtab.js'), 'utf8');
 const fallbackSource = fs.readFileSync(path.join(repoRoot, 'src/newtab/lumno-newtab.js'), 'utf8');
+const wallpaperEffectPreloadSource = fs.readFileSync(
+  path.join(repoRoot, 'src/newtab/wallpaper-effect-preload.js'),
+  'utf8'
+);
 const backgroundSource = fs.readFileSync(
   path.join(repoRoot, 'src/background/background.js'),
   'utf8'
@@ -20,6 +24,11 @@ assert.doesNotMatch(
   html,
   /newtab-focus-entry\.js|data-nt-focus-route|data-nt-focus-paint-gate/,
   'the maintained New Tab should paint directly without a focus-route gate'
+);
+assert.doesNotMatch(
+  wallpaperEffectPreloadSource,
+  /data-nt-focus-route/,
+  'wallpaper effect preloading should not depend on the retired automatic-focus route'
 );
 assert.ok(
   html.indexOf('<script src="../shared/settings.js"></script>') <

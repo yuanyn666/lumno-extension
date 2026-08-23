@@ -32,6 +32,11 @@
   }
 
   function resolveCachedWallpaperMode(data) {
+    const preloadedMode = document.documentElement &&
+      document.documentElement.getAttribute('data-wallpaper-preload-theme');
+    if (preloadedMode === 'dark' || preloadedMode === 'light') {
+      return preloadedMode;
+    }
     const themeMode = data && typeof data.themeMode === 'string' ? data.themeMode : '';
     if (themeMode === 'dark' || themeMode === 'light') {
       return themeMode;

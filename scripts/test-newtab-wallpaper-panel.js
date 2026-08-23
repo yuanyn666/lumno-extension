@@ -8,6 +8,7 @@ const WALLPAPER_OVERLAY_STORAGE_KEY = '_x_extension_newtab_wallpaper_overlay_202
 const WALLPAPER_EFFECT_STORAGE_KEY = '_x_extension_newtab_wallpaper_effect_2026_unique_';
 const NEWTAB_FAVICON_STORAGE_KEY = '_x_extension_newtab_favicon_2026_unique_';
 const NEWTAB_FAVICON_PRELOAD_STORAGE_KEY = '_x_extension_newtab_favicon_preload_2026_unique_';
+const NEWTAB_THEME_PRELOAD_STORAGE_KEY = '_x_extension_newtab_theme_preload_2026_unique_';
 const WALLPAPER_PRELOAD_STORAGE_KEY = '_x_extension_newtab_wallpaper_preload_2026_unique_';
 const WALLPAPER_PRELOAD_STORAGE_VERSION = 4;
 const DEFAULT_WALLPAPER_ID = 'monet-coastal-white';
@@ -1451,6 +1452,192 @@ function testWallpaperPreloadUsesTheCachedResolvedMode() {
     '',
     'stale mode-aware caches that may contain the fallback race should be ignored after the fix'
   );
+
+  const preloadedThemeDocument = createFakeDocument();
+  const preloadedThemeWindow = createFakeWindow();
+  preloadedThemeDocument.documentElement.setAttribute('data-wallpaper-preload-theme', 'dark');
+  preloadedThemeWindow.localStorage.setItem(WALLPAPER_PRELOAD_STORAGE_KEY, JSON.stringify({
+    version: WALLPAPER_PRELOAD_STORAGE_VERSION,
+    mode: 'light',
+    themeMode: 'light',
+    overlayStops: {
+      light: { top: 0, mid: 0, bottom: 0 },
+      dark: { top: 4.4, mid: 2, bottom: 5 }
+    },
+    wallpapers: {
+      light: {
+        id: 'monet-coastal-white',
+        path: 'assets/wallpapers/lumno-newtab-monet-coastal-white.webp'
+      },
+      dark: {
+        id: 'dark-shanshui-moonlit',
+        path: 'assets/wallpapers/lumno-newtab-dark-shanshui-moonlit.webp'
+      }
+    }
+  }));
+  runWallpaperPreload(preloadedThemeDocument, preloadedThemeWindow);
+  assert.match(
+    preloadedThemeDocument.documentElement.style.getPropertyValue('--x-nt-wallpaper-image'),
+    /dark-shanshui-moonlit/,
+    'the independent first-paint theme should win when an older wallpaper cache has a stale mode'
+  );
+}
+
+function testThemePreloadAlwaysPaintsTheCorrectCanvas() {
+  const themePreloadSource = fs.readFileSync('src/newtab/theme-preload.js', 'utf8');
+  const runThemePreload = (windowObj) => {
+    const documentObj = createFakeDocument();
+    const themeColorMeta = createFakeElement('meta', documentObj);
+    themeColorMeta.setAttribute('name', 'theme-color');
+    themeColorMeta.setAttribute('content', '#ffffff');
+    documentObj.querySelector = (selector) => selector === 'meta[name="theme-color"]'
+      ? themeColorMeta
+      : null;
+    vm.runInNewContext(themePreloadSource, {
+      document: documentObj,
+      window: windowObj
+    }, {
+      filename: 'src/newtab/theme-preload.js'
+    });
+    return { documentObj, themeColorMeta };
+  };
+
+  const coldDarkWindow = createFakeWindow();
+  coldDarkWindow.__setMediaMatchSilently('(prefers-color-scheme: dark)', true);
+  const coldDark = runThemePreload(coldDarkWindow);
+  assert.strictEqual(
+    coldDark.documentObj.documentElement.getAttribute('data-wallpaper-preload-theme'),
+    'dark',
+    'a cold start without any cache should use the current dark system theme immediately'
+  );
+  assert.strictEqual(coldDark.documentObj.documentElement.style.backgroundColor, '#111111');
+  assert.strictEqual(coldDark.documentObj.documentElement.style.colorScheme, 'dark');
+  assert.strictEqual(coldDark.themeColorMeta.getAttribute('content'), '#111111');
+
+  const explicitDarkWindow = createFakeWindow();
+  explicitDarkWindow.__setMediaMatchSilently('(prefers-color-scheme: dark)', false);
+  explicitDarkWindow.localStorage.setItem(NEWTAB_THEME_PRELOAD_STORAGE_KEY, 'dark');
+  const explicitDark = runThemePreload(explicitDarkWindow);
+  assert.strictEqual(
+    explicitDark.documentObj.documentElement.getAttribute('data-wallpaper-preload-theme'),
+    'dark',
+    'an explicit dark page theme should override a light operating-system theme before first paint'
+  );
+
+  const systemWindow = createFakeWindow();
+  systemWindow.localStorage.setItem(NEWTAB_THEME_PRELOAD_STORAGE_KEY, 'system');
+  systemWindow.__setMediaMatchSilently('(prefers-color-scheme: dark)', true);
+  const systemTheme = runThemePreload(systemWindow);
+  assert.strictEqual(
+    systemTheme.documentObj.documentElement.getAttribute('data-wallpaper-preload-theme'),
+    'dark',
+    'a cached system preference should still resolve against the current media query'
+  );
+
+  const migratedWindow = createFakeWindow();
+  migratedWindow.localStorage.setItem(WALLPAPER_PRELOAD_STORAGE_KEY, JSON.stringify({
+    version: 1,
+    themeMode: 'dark'
+  }));
+  const migratedTheme = runThemePreload(migratedWindow);
+  assert.strictEqual(
+    migratedTheme.documentObj.documentElement.getAttribute('data-wallpaper-preload-theme'),
+    'dark',
+    'the previous wallpaper cache should seed the new standalone theme cache even when its image data is stale'
+  );
+  assert.strictEqual(
+    migratedWindow.localStorage.getItem(NEWTAB_THEME_PRELOAD_STORAGE_KEY),
+    'dark',
+    'the migrated theme should be available synchronously on the next new tab'
+  );
+
+  const freshLightWindow = createFakeWindow();
+  freshLightWindow.localStorage.setItem(NEWTAB_THEME_PRELOAD_STORAGE_KEY, 'light');
+  freshLightWindow.localStorage.setItem(WALLPAPER_PRELOAD_STORAGE_KEY, JSON.stringify({
+    version: WALLPAPER_PRELOAD_STORAGE_VERSION,
+    themeMode: 'dark'
+  }));
+  const freshLight = runThemePreload(freshLightWindow);
+  assert.strictEqual(
+    freshLight.documentObj.documentElement.getAttribute('data-wallpaper-preload-theme'),
+    'light',
+    'the dedicated cache should take precedence over an older wallpaper theme hint'
+  );
+
+  const corruptWindow = createFakeWindow();
+  corruptWindow.localStorage.setItem(NEWTAB_THEME_PRELOAD_STORAGE_KEY, 'sepia');
+  corruptWindow.localStorage.setItem(WALLPAPER_PRELOAD_STORAGE_KEY, '{broken json');
+  corruptWindow.__setMediaMatchSilently('(prefers-color-scheme: dark)', false);
+  const corruptFallback = runThemePreload(corruptWindow);
+  assert.strictEqual(
+    corruptFallback.documentObj.documentElement.getAttribute('data-wallpaper-preload-theme'),
+    'light',
+    'invalid caches should fail closed to the current system theme without blocking startup'
+  );
+}
+
+function assertNewtabFirstPaintAvoidsWhiteFlash() {
+  const html = fs.readFileSync('src/newtab/newtab.html', 'utf8');
+  const newtabSource = fs.readFileSync('src/newtab/newtab.js', 'utf8');
+  const optionsSource = fs.readFileSync('src/options/options.js', 'utf8');
+  const firstPaintStyleIndex = html.indexOf('<style data-nt-first-paint="true">');
+  const themePreloadIndex = html.indexOf('<script src="theme-preload.js"></script>');
+  const settingsIndex = html.indexOf('<script src="../shared/settings.js"></script>');
+  const wallpaperPreloadIndex = html.indexOf('<script src="wallpaper-preload.js"></script>');
+  const motionPreloadIndex = html.indexOf('<script src="../shared/motion-preload.js"></script>');
+  const wallpaperEffectsIndex = html.indexOf('<script src="wallpaper-effects.js"></script>');
+
+  assert.ok(
+    firstPaintStyleIndex > -1 && firstPaintStyleIndex < themePreloadIndex &&
+      themePreloadIndex < settingsIndex,
+    'the system-aware page background should be parsed before any startup script can delay first paint'
+  );
+  assert.match(
+    html,
+    /<meta name="color-scheme" content="light dark"\s*\/>/,
+    'the browser should receive a dark-capable canvas hint before the stylesheet graph loads'
+  );
+  assert.match(
+    html,
+    /@media \(prefers-color-scheme: dark\)[\s\S]*?html body:not\(\[data-theme\]\)[\s\S]*?--x-nt-bg:\s*#111111/,
+    'a cold dark-system start should not paint the later light default before storage resolves'
+  );
+  assert.match(
+    html,
+    /html\[data-wallpaper-preload-theme="light"\][\s\S]*?html\[data-wallpaper-preload-theme="dark"\]/,
+    'the synchronous wallpaper cache should override the system fallback in either direction'
+  );
+  assert.ok(
+    settingsIndex < wallpaperPreloadIndex &&
+      wallpaperPreloadIndex < motionPreloadIndex &&
+      wallpaperPreloadIndex < wallpaperEffectsIndex,
+    'the cached wallpaper should paint immediately after provider settings, before unrelated startup work'
+  );
+  assert.match(
+    html,
+    /html\[data-wallpaper-preload-theme="dark"\]\[data-wallpaper-active="true"\] body:not\(\[data-theme\]\)[\s\S]*?rgb\(0 0 0/,
+    'a cached dark wallpaper should not briefly use the light wallpaper overlay before theme hydration'
+  );
+  assert.match(
+    newtabSource,
+    /document\.documentElement\.style\.backgroundColor\s*=\s*resolved === 'dark' \? '#111111' : '#ffffff';/,
+    'the resolved theme should take ownership of the root canvas after the temporary first-paint fallback'
+  );
+  assert.match(
+    newtabSource,
+    /localStorage\.setItem\(NEWTAB_THEME_PRELOAD_STORAGE_KEY, currentThemeMode\)/,
+    'the new-tab runtime should refresh the synchronous theme cache after authoritative storage resolves'
+  );
+  assert.match(
+    optionsSource,
+    /cacheNewtabThemeMode\(nextMode, currentNewtabThemeMode\)/,
+    'changing the global theme in Options should refresh the next new tab before it paints'
+  );
+  assert.doesNotMatch(
+    html.slice(firstPaintStyleIndex, settingsIndex),
+    /(?:html|body)[^{]*\{[^}]*\b(?:visibility\s*:\s*hidden|opacity\s*:\s*0)/,
+    'the anti-flash path must not hide the document while waiting for storage or wallpaper decoding'
+  );
 }
 
 function assertWallpaperBootstrapWaitsForTheme() {
@@ -2763,12 +2950,14 @@ Promise.resolve()
     assertAvatarFaviconAssetContract();
     assertSquareFaviconOptionCss('src/newtab/newtab.html');
     assertSegmentedTabRadiusCss('src/newtab/newtab.html');
+    assertNewtabFirstPaintAvoidsWhiteFlash();
     assertWallpaperBootstrapWaitsForTheme();
     assertInitialWallpaperToneStartsBeforeDeferredRefresh();
   })
   .then(testInputAutoFocusHintWaitsForFinalFocusRoute)
   .then(testNewtabFaviconPreloadAppliesCachedAlternateBeforeMainRuntime)
   .then(testNewtabFaviconPreloadAppliesCachedAvatarBeforeMainRuntime)
+  .then(testThemePreloadAlwaysPaintsTheCorrectCanvas)
   .then(testWallpaperPreloadUsesTheCachedResolvedMode)
   .then(testBuiltInWallpaperBootstrapDefersCustomCatalogRead)
   .then(testWallpaperTileIntentReusesDecodedImagePromise)
