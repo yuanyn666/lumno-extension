@@ -277,6 +277,12 @@ function run() {
   checkPath(manifest.options_ui && manifest.options_ui.page);
 
   Object.values(manifest.icons || {}).forEach(checkPath);
+  const actionDefaultIcon = manifest.action && manifest.action.default_icon;
+  if (typeof actionDefaultIcon === 'string') {
+    checkPath(actionDefaultIcon);
+  } else {
+    Object.values(actionDefaultIcon || {}).forEach(checkPath);
+  }
   (manifest.content_scripts || []).forEach((script) => {
     (script.js || []).forEach(checkPath);
     (script.css || []).forEach(checkPath);

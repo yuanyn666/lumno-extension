@@ -1,5 +1,9 @@
 {
    "action": {
+      "default_icon": {
+         "16": "assets/images/lumno.png",
+         "32": "assets/images/lumno.png"
+      },
       "default_title": "__MSG_ext_name__"
    },
    "background": {
@@ -105,7 +109,8 @@
    "host_permissions": [ "\u003Call_urls>" ],
    "icons": {
       "128": "assets/images/lumno.png",
-      "16": "assets/images/lumno.png",
+      "16": "assets/images/newtab-avatar-favicon.png",
+      "32": "assets/images/newtab-avatar-favicon.png",
       "48": "assets/images/lumno.png"
    },
    "key": "MIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEA4IJHCeNqCC958Z7CdtfnvJ+6yMNGWvtmqkDRpVGRggjJFrDEYkfZ5fudKj94FaxhLwUCeXa6p7ZKVu9bimhstDM8TR+XqUIbegeriEpUGs6FFmAkS2iTptnBRsUjEKFLlMoP0uSiUa0VPuQ3hnKvmWrSmSiiAD0xwY25+A3Ivh4QBuZLL0HsuaSfULDRoP7aoRTY4bGvxhrfBVA/LsqXEEI3gLiD6yixCFiIn+4h3XNbwQriXIBlYo8AMM6tptafzrDSWQy9XmWpXOal/1sdcmtOgyyUvJPQVN8ODr2AzZMmwms+jUYVYQPxAhyR/RuUrCg6ZqfYpyw7U0vJ+9nFXwIDAQAB",

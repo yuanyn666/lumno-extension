@@ -92,6 +92,11 @@ assert.doesNotMatch(
   /wallpaper-preload\.js|codex-debug-surface\.js/,
   'standalone Lumno newtab fallback should redirect without painting or bootstrapping an intermediate page'
 );
+assert.doesNotMatch(
+  lumnoNewtabHtml,
+  /<link[^>]+data-lumno-newtab-favicon="true"/,
+  'standalone fallback should keep the manifest loading icon instead of introducing a second favicon'
+);
 assert.ok(
   getScriptTags(lumnoNewtabHtml).every((match) => /\bsrc=/.test(match[1])),
   'standalone Lumno newtab fallback should not use inline scripts because extension pages disallow them by CSP'

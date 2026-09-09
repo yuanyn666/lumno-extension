@@ -1207,8 +1207,11 @@ function assertThemeAwareAlternateFaviconAsset() {
 function assertAvatarFaviconAssetContract() {
   const wallpaperSource = fs.readFileSync('src/newtab/wallpaper.js', 'utf8');
   const preloadSource = fs.readFileSync('src/newtab/wallpaper-preload.js', 'utf8');
+  const firstPaintSource = fs.readFileSync('src/newtab/theme-preload.js', 'utf8');
+  const manifest = JSON.parse(fs.readFileSync('manifest.json', 'utf8'));
   const avatarOption = wallpaperSource.match(/\{\s*id:\s*'avatar',[\s\S]*?\n\s*\}/);
   const preloadAvatarOption = preloadSource.match(/avatar:\s*\{[\s\S]*?\n\s*\}/);
+  const firstPaintAvatarOption = firstPaintSource.match(/avatar:\s*\{[\s\S]*?\n\s*\}/);
 
   assert.ok(avatarOption, 'favicon options should add the avatar without replacing the existing choices');
   assert.match(
@@ -1223,6 +1226,27 @@ function assertAvatarFaviconAssetContract() {
   assert.match(preloadAvatarOption[0], /file:\s*'assets\/images\/newtab-avatar-favicon\.png'/);
   assert.match(preloadAvatarOption[0], /type:\s*'image\/png'/);
   assert.match(preloadAvatarOption[0], /sizes:\s*'128x128'/);
+  assert.ok(firstPaintAvatarOption, 'the first-paint runtime should recognize the avatar id');
+  assert.match(firstPaintAvatarOption[0], /file:\s*'assets\/images\/newtab-avatar-favicon\.png'/);
+  assert.strictEqual(
+    manifest.icons['16'],
+    'assets/images/newtab-avatar-favicon.png',
+    'Chromium should use the avatar for the provisional extension-page favicon'
+  );
+  assert.strictEqual(
+    manifest.icons['32'],
+    'assets/images/newtab-avatar-favicon.png',
+    'HiDPI provisional favicons should also use the avatar'
+  );
+  assert.strictEqual(manifest.icons['48'], 'assets/images/lumno.png');
+  assert.strictEqual(manifest.icons['128'], 'assets/images/lumno.png');
+  assert.strictEqual(
+    manifest.action.default_icon['16'],
+    'assets/images/lumno.png',
+    'changing the loading favicon should not replace the toolbar action branding'
+  );
+  assert.strictEqual(manifest.action.default_icon['32'], 'assets/images/lumno.png');
+  assert.strictEqual(manifest.action.default_icon['32'], 'assets/images/lumno.png');
 
   const png = fs.readFileSync('assets/images/newtab-avatar-favicon.png');
   assert.strictEqual(
@@ -1238,23 +1262,26 @@ function testNewtabFaviconPreloadAppliesCachedAlternateBeforeMainRuntime() {
   const documentObj = createFakeDocument();
   const windowObj = createFakeWindow();
   windowObj.localStorage.setItem(NEWTAB_FAVICON_PRELOAD_STORAGE_KEY, 'alternate');
+  windowObj.chrome = {
+    runtime: {
+      getURL: (path) => `chrome-extension://abc/${String(path || '').replace(/^\/+/, '')}`
+    }
+  };
   const sandbox = {
     document: documentObj,
     window: windowObj,
-    chrome: {
-      runtime: {
-        getURL: (path) => `chrome-extension://abc/${String(path || '').replace(/^\/+/, '')}`
-      }
-    }
+    chrome: windowObj.chrome
   };
 
-  vm.runInNewContext(fs.readFileSync('src/newtab/wallpaper-preload.js', 'utf8'), sandbox, {
-    filename: 'src/newtab/wallpaper-preload.js'
+  vm.runInNewContext(fs.readFileSync('src/newtab/theme-preload.js', 'utf8'), sandbox, {
+    filename: 'src/newtab/theme-preload.js'
   });
 
-  const faviconLink = documentObj.head.children.find((child) => child.tagName === 'LINK' &&
+  const faviconLinks = documentObj.head.children.filter((child) => child.tagName === 'LINK' &&
     child.getAttribute('data-lumno-newtab-favicon') === 'true');
-  assert.ok(faviconLink, 'wallpaper preload should apply the cached New Tab favicon before main runtime');
+  assert.strictEqual(faviconLinks.length, 1, 'the first-paint runtime should create exactly one favicon link');
+  const faviconLink = faviconLinks[0];
+  assert.ok(faviconLink, 'the first-paint preload should apply the cached New Tab favicon before main runtime');
   assert.strictEqual(faviconLink.getAttribute('rel'), 'icon');
   assert.strictEqual(faviconLink.getAttribute('type'), 'image/svg+xml');
   assert.strictEqual(faviconLink.getAttribute('sizes'), 'any');
@@ -1266,16 +1293,16 @@ function testNewtabFaviconPreloadAppliesCachedAlternateBeforeMainRuntime() {
 
   ['src/newtab/newtab.html'].forEach((filePath) => {
     const html = fs.readFileSync(filePath, 'utf8');
-    const staticFaviconIndex = html.indexOf('data-lumno-newtab-favicon="true"');
+    const firstPaintPreloadIndex = html.indexOf('<script src="theme-preload.js"></script>');
     const firstStylesheetIndex = html.indexOf('<link rel="stylesheet"');
-    assert.ok(staticFaviconIndex !== -1, `${filePath} should include a static monochrome favicon link`);
     assert.ok(
-      staticFaviconIndex < html.indexOf('<title>'),
-      `${filePath} should expose the monochrome favicon before the title can use the extension default icon`
+      firstPaintPreloadIndex !== -1 && firstPaintPreloadIndex < html.indexOf('<title>'),
+      `${filePath} should apply the cached favicon before the title and main runtime load`
     );
-    assert.ok(
-      staticFaviconIndex < html.indexOf('<script src="wallpaper-preload.js"></script>'),
-      `${filePath} should expose the monochrome favicon before the external preload script runs`
+    assert.doesNotMatch(
+      html,
+      /<link[^>]+data-lumno-newtab-favicon="true"/,
+      `${filePath} should not overwrite the cached first-paint favicon with a hard-coded link`
     );
     if (firstStylesheetIndex !== -1) {
       assert.ok(
@@ -1299,6 +1326,11 @@ function testNewtabFaviconPreloadAppliesCachedAlternateBeforeMainRuntime() {
   );
   assert.doesNotMatch(
     fallbackHtml,
+    /<link[^>]+data-lumno-newtab-favicon="true"/,
+    'the redirect-only fallback should retain the manifest loading icon instead of hard-coding a second choice'
+  );
+  assert.doesNotMatch(
+    fallbackHtml,
     /<script\b(?![^>]*\bsrc=)[^>]*>[\s\S]*?<\/script>/,
     'lumno-newtab fallback should not use inline scripts because extension pages disallow them by CSP'
   );
@@ -1319,21 +1351,25 @@ function testNewtabFaviconPreloadAppliesCachedAvatarBeforeMainRuntime() {
   const windowObj = createFakeWindow();
   windowObj.localStorage.setItem(NEWTAB_FAVICON_PRELOAD_STORAGE_KEY, 'avatar');
 
-  vm.runInNewContext(fs.readFileSync('src/newtab/wallpaper-preload.js', 'utf8'), {
+  windowObj.chrome = {
+    runtime: {
+      getURL: (path) => `chrome-extension://abc/${String(path || '').replace(/^\/+/, '')}`
+    }
+  };
+
+  vm.runInNewContext(fs.readFileSync('src/newtab/theme-preload.js', 'utf8'), {
     document: documentObj,
     window: windowObj,
-    chrome: {
-      runtime: {
-        getURL: (path) => `chrome-extension://abc/${String(path || '').replace(/^\/+/, '')}`
-      }
-    }
+    chrome: windowObj.chrome
   }, {
-    filename: 'src/newtab/wallpaper-preload.js'
+    filename: 'src/newtab/theme-preload.js'
   });
 
-  const faviconLink = documentObj.head.children.find((child) => child.tagName === 'LINK' &&
+  const faviconLinks = documentObj.head.children.filter((child) => child.tagName === 'LINK' &&
     child.getAttribute('data-lumno-newtab-favicon') === 'true');
-  assert.ok(faviconLink, 'wallpaper preload should apply the cached avatar before main runtime');
+  assert.strictEqual(faviconLinks.length, 1, 'the avatar should be the only first-paint favicon link');
+  const faviconLink = faviconLinks[0];
+  assert.ok(faviconLink, 'the first-paint preload should apply the cached avatar before main runtime');
   assert.strictEqual(faviconLink.getAttribute('rel'), 'icon');
   assert.strictEqual(faviconLink.getAttribute('type'), 'image/png');
   assert.strictEqual(faviconLink.getAttribute('sizes'), '128x128');
@@ -1341,6 +1377,67 @@ function testNewtabFaviconPreloadAppliesCachedAvatarBeforeMainRuntime() {
   assert.ok(
     faviconLink.getAttribute('href').includes('assets/images/newtab-avatar-favicon.png'),
     'cached avatar favicon should preload the supplied PNG asset'
+  );
+}
+
+function testNewtabFaviconFirstPaintOnlyOverridesManifestForValidCache() {
+  ['default', '', 'unknown-favicon', '__proto__', 'constructor', 'toString'].forEach((cachedId) => {
+    const documentObj = createFakeDocument();
+    const windowObj = createFakeWindow();
+    if (cachedId) {
+      windowObj.localStorage.setItem(NEWTAB_FAVICON_PRELOAD_STORAGE_KEY, cachedId);
+    }
+    windowObj.chrome = {
+      runtime: {
+        getURL: (path) => `chrome-extension://abc/${String(path || '').replace(/^\/+/, '')}`
+      }
+    };
+
+    vm.runInNewContext(fs.readFileSync('src/newtab/theme-preload.js', 'utf8'), {
+      document: documentObj,
+      window: windowObj,
+      chrome: windowObj.chrome
+    }, {
+      filename: 'src/newtab/theme-preload.js'
+    });
+
+    const faviconLinks = documentObj.head.children.filter((child) => child.tagName === 'LINK' &&
+      child.getAttribute('data-lumno-newtab-favicon') === 'true');
+    if (cachedId === 'default') {
+      assert.strictEqual(faviconLinks.length, 1, 'a cached default choice should override the manifest placeholder once');
+      assert.strictEqual(faviconLinks[0].getAttribute('data-newtab-favicon-id'), 'default');
+      assert.match(faviconLinks[0].getAttribute('href'), /assets\/images\/lumno\.png$/);
+      return;
+    }
+    assert.strictEqual(
+      faviconLinks.length,
+      0,
+      'empty or invalid caches should leave the avatar manifest loading icon in place until storage resolves'
+    );
+  });
+
+  const documentObj = createFakeDocument();
+  const windowObj = createFakeWindow();
+  windowObj.localStorage.setItem(NEWTAB_FAVICON_PRELOAD_STORAGE_KEY, 'avatar');
+  windowObj.__setMediaMatchSilently('(prefers-color-scheme: dark)', true);
+  windowObj.chrome = {
+    runtime: {
+      getURL() {
+        throw new Error('runtime unavailable during reload');
+      }
+    }
+  };
+  vm.runInNewContext(fs.readFileSync('src/newtab/theme-preload.js', 'utf8'), {
+    document: documentObj,
+    window: windowObj,
+    chrome: windowObj.chrome
+  }, {
+    filename: 'src/newtab/theme-preload.js'
+  });
+  assert.strictEqual(
+    documentObj.documentElement.getAttribute('data-wallpaper-preload-theme'),
+    'dark',
+    'a favicon error should never interrupt the anti-flash theme fallback'
   );
 }
 
@@ -2957,6 +3054,7 @@ Promise.resolve()
   .then(testInputAutoFocusHintWaitsForFinalFocusRoute)
   .then(testNewtabFaviconPreloadAppliesCachedAlternateBeforeMainRuntime)
   .then(testNewtabFaviconPreloadAppliesCachedAvatarBeforeMainRuntime)
+  .then(testNewtabFaviconFirstPaintOnlyOverridesManifestForValidCache)
   .then(testThemePreloadAlwaysPaintsTheCorrectCanvas)
   .then(testWallpaperPreloadUsesTheCachedResolvedMode)
   .then(testBuiltInWallpaperBootstrapDefersCustomCatalogRead)
